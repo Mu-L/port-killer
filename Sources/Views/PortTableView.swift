@@ -306,7 +306,6 @@ struct PortListRow: View {
                 }
                 .keyboardShortcut(.delete, modifiers: [])
             }
-            .keyboardShortcut(.delete, modifiers: [])
 			
 			Divider()
 			Button {
