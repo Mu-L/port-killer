@@ -34,16 +34,24 @@ if [ -d "$BUILD_DIR/PortKiller_PortKiller.bundle" ]; then
     cp -r "$BUILD_DIR/PortKiller_PortKiller.bundle" "$RESOURCES_DIR/"
 fi
 
-# Copy Sparkle framework from artifacts (preserves symlinks)
-SPARKLE_FRAMEWORK=".build/artifacts/sparkle/Sparkle/Sparkle.xcframework/macos-arm64_x86_64/Sparkle.framework"
-if [ -d "$SPARKLE_FRAMEWORK" ]; then
-    echo "📦 Copying Sparkle.framework from artifacts..."
-    ditto "$SPARKLE_FRAMEWORK" "$CONTENTS_DIR/Frameworks/Sparkle.framework"
+# Download and copy Sparkle framework from official release (preserves symlinks)
+SPARKLE_VERSION="2.8.1"
+SPARKLE_CACHE="/tmp/Sparkle-${SPARKLE_VERSION}"
 
-    # Add rpath so executable can find the framework
-    echo "🔗 Setting up framework path..."
-    install_name_tool -add_rpath "@executable_path/../Frameworks" "$MACOS_DIR/$APP_NAME" 2>/dev/null || true
+if [ ! -d "$SPARKLE_CACHE/Sparkle.framework" ]; then
+    echo "📥 Downloading Sparkle ${SPARKLE_VERSION}..."
+    curl -L -o /tmp/Sparkle.tar.xz "https://github.com/sparkle-project/Sparkle/releases/download/${SPARKLE_VERSION}/Sparkle-${SPARKLE_VERSION}.tar.xz"
+    mkdir -p "$SPARKLE_CACHE"
+    tar -xf /tmp/Sparkle.tar.xz -C "$SPARKLE_CACHE"
+    rm /tmp/Sparkle.tar.xz
 fi
+
+echo "📦 Copying Sparkle.framework..."
+ditto "$SPARKLE_CACHE/Sparkle.framework" "$CONTENTS_DIR/Frameworks/Sparkle.framework"
+
+# Add rpath so executable can find the framework
+echo "🔗 Setting up framework path..."
+install_name_tool -add_rpath "@executable_path/../Frameworks" "$MACOS_DIR/$APP_NAME" 2>/dev/null || true
 
 echo "🔏 Signing app bundle..."
 codesign --force --deep --sign - "$APP_DIR"
