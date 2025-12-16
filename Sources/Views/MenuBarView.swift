@@ -494,6 +494,7 @@ struct PortRow: View {
 			} label: {
 				Label("Open in Browser",systemImage: "globe.fill")
 			}
+			.keyboardShortcut("o", modifiers: .command)
 			
 			Button {
 				NSPasteboard.general.clearContents()
