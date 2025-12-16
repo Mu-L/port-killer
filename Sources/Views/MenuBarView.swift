@@ -6,10 +6,6 @@ struct ProcessGroup: Identifiable {
 	let id: Int // Use PID as stable identifier
 	let processName: String
 	let ports: [PortInfo]
-	
-	var displayName: String {
-		"\(processName) (\(ports.count) port\(ports.count == 1 ? "" : "s"))"
-	}
 }
 
 struct MenuBarView: View {
@@ -235,7 +231,7 @@ struct ProcessGroupRow: View {
 					.animation(.easeInOut(duration: 0.4).repeatForever(autoreverses: true), value: isKilling)
 				
 				// Process name with port count
-				Text(group.displayName)
+				Text(group.processName)
 					.font(.callout)
 					.fontWeight(.medium)
 				
@@ -246,8 +242,26 @@ struct ProcessGroupRow: View {
 					.font(.caption2)
 					.foregroundStyle(.secondary)
 				
-				// Kill process button (visible on hover)
-				if showConfirm {
+				if !(isHovered || showConfirm){
+					Text("\(group.ports.count)")
+						.font(.caption2)
+						.foregroundStyle(.secondary)
+						.padding(.horizontal, 5)
+						//.padding(.vertical, 5)
+						.background(.tertiary.opacity(0.5))
+						.clipShape(Capsule())
+				} else if !(showConfirm) {
+					Button {
+						showConfirm = true
+					} label: {
+						Image(systemName: "xmark.circle.fill")
+							.foregroundStyle(.red)
+					}
+					.buttonStyle(.plain)
+					//.opacity(isHovered ? 1 : 0)
+				}
+				
+				if showConfirm { // Kill process button (visible on hover)
 					HStack(spacing: 4) {
 						Button {
 							showConfirm = false
@@ -267,15 +281,6 @@ struct ProcessGroupRow: View {
 						}
 						.buttonStyle(.plain)
 					}
-				} else {
-					Button {
-						showConfirm = true
-					} label: {
-						Image(systemName: "xmark.circle.fill")
-							.foregroundStyle(.red)
-					}
-					.buttonStyle(.plain)
-					.opacity(isHovered ? 1 : 0)
 				}
 			}
 			.padding(.horizontal, 12)
@@ -511,6 +516,8 @@ struct PortRow: View {
 
 @MainActor
 private func bringMainWindowToFront() {
+    // For menu bar apps, we need to set activation policy to regular temporarily
+    NSApp.setActivationPolicy(.regular)
     NSApp.activate(ignoringOtherApps: true)
 
     // Find the main window (not menu bar extra)
