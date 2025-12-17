@@ -31,9 +31,6 @@ struct MenuBarActions: View {
                 useTreeView.toggle()
             }
 
-            Divider()
-                .padding(.vertical, 4)
-
             if confirmingKillAll {
                 HStack {
                     Text("Kill all \(state.ports.count) processes?")
