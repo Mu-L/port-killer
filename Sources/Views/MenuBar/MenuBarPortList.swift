@@ -2,6 +2,7 @@
 ///
 /// Manages the display of ports in either list or tree view mode.
 /// Shows an empty state when no ports are found.
+/// Includes Kubernetes port-forward connections at the top.
 ///
 /// - Note: Uses LazyVStack for performance with large port lists.
 /// - Important: Tree view groups ports by process, list view shows flat list.
@@ -10,6 +11,7 @@ import SwiftUI
 
 struct MenuBarPortList: View {
     let filteredPorts: [PortInfo]
+    let filteredPortForwardConnections: [PortForwardConnectionState]
     let groupedByProcess: [ProcessGroup]
     let useTreeView: Bool
     @Binding var expandedProcesses: Set<Int>
@@ -19,16 +21,46 @@ struct MenuBarPortList: View {
     var body: some View {
         ScrollView {
             LazyVStack(spacing: 0) {
-                if filteredPorts.isEmpty {
+                // Port Forward connections first
+                if !filteredPortForwardConnections.isEmpty {
+                    sectionHeader("K8s Port Forward", icon: "point.3.connected.trianglepath.dotted", color: .blue)
+
+                    ForEach(filteredPortForwardConnections) { connection in
+                        PortForwardRow(connection: connection, state: state)
+                    }
+                }
+
+                // Normal ports
+                if filteredPorts.isEmpty && filteredPortForwardConnections.isEmpty {
                     emptyState
-                } else if useTreeView {
-                    treeView
-                } else {
-                    listView
+                } else if !filteredPorts.isEmpty {
+                    sectionHeader("Local Ports", icon: "network", color: .green)
+
+                    if useTreeView {
+                        treeView
+                    } else {
+                        listView
+                    }
                 }
             }
         }
         .frame(height: 400)
+    }
+
+    private func sectionHeader(_ title: String, icon: String, color: Color) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: icon)
+                .font(.caption2)
+                .foregroundStyle(color)
+            Text(title)
+                .font(.caption)
+                .fontWeight(.semibold)
+                .foregroundStyle(.secondary)
+            Spacer()
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .background(Color.primary.opacity(0.03))
     }
 
     /// Empty state shown when no ports are found

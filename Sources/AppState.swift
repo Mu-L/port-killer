@@ -77,7 +77,7 @@ final class AppState {
 
         // Apply sidebar selection
         switch selectedSidebarItem {
-        case .allPorts, .settings, .sponsors:
+        case .allPorts, .settings, .sponsors, .kubernetesPortForward:
             result = ports
         case .favorites:
             // Single pass: collect active favorites and track which ports are active
@@ -146,6 +146,11 @@ final class AppState {
 
     /// Manages Sparkle auto-update functionality
     let updateManager = UpdateManager()
+
+    // MARK: - Port Forward Manager
+
+    /// Manages Kubernetes port-forward connections
+    let portForwardManager = PortForwardManager()
 
     // MARK: - Private Properties
 
