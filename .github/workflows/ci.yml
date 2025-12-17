@@ -63,10 +63,9 @@ jobs:
           [ -f "$APP/Contents/Info.plist" ] || { echo "Missing Info.plist"; exit 1; }
           [ -d "$APP/Contents/Frameworks/Sparkle.framework" ] || { echo "Missing Sparkle framework"; exit 1; }
 
-          # Verify SPM resource bundles in app root (fixes Settings crash)
-          # SPM's Bundle.module looks here, not in Contents/Resources
-          [ -d "$APP/KeyboardShortcuts_KeyboardShortcuts.bundle" ] || { echo "Missing KeyboardShortcuts bundle in app root"; exit 1; }
-          [ -d "$APP/Defaults_Defaults.bundle" ] || { echo "Missing Defaults bundle in app root"; exit 1; }
+          # Verify SPM resource bundles in Contents/Resources (patched accessor looks here)
+          [ -d "$APP/Contents/Resources/KeyboardShortcuts_KeyboardShortcuts.bundle" ] || { echo "Missing KeyboardShortcuts bundle"; exit 1; }
+          [ -d "$APP/Contents/Resources/Defaults_Defaults.bundle" ] || { echo "Missing Defaults bundle"; exit 1; }
           echo "App bundle structure verified."
 
   lint:
