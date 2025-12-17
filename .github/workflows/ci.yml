@@ -1,0 +1,132 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build & Test
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Cache Swift Package Manager
+        uses: actions/cache@v4
+        with:
+          path: |
+            .build
+            ~/Library/Caches/org.swift.swiftpm
+          key: ${{ runner.os }}-spm-${{ hashFiles('Package.resolved') }}
+          restore-keys: |
+            ${{ runner.os }}-spm-
+
+      - name: Resolve dependencies
+        run: swift package resolve
+
+      - name: Build (Debug)
+        run: swift build
+
+      - name: Build (Release)
+        run: swift build -c release
+
+      - name: Run Tests
+        run: swift test --parallel
+
+  lint:
+    name: Lint
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check for TODO/FIXME comments
+        run: |
+          echo "Checking for TODO/FIXME comments..."
+          TODOS=$(grep -rn "TODO\|FIXME" Sources/ --include="*.swift" || true)
+          if [ -n "$TODOS" ]; then
+            echo "Found TODO/FIXME comments:"
+            echo "$TODOS"
+            echo ""
+            echo "Note: Please address these before merging."
+          else
+            echo "No TODO/FIXME comments found."
+          fi
+
+      - name: Check file line counts
+        run: |
+          echo "Checking for files over 300 lines..."
+          LARGE_FILES=""
+          for file in $(find Sources -name "*.swift"); do
+            LINES=$(wc -l < "$file")
+            if [ "$LINES" -gt 300 ]; then
+              LARGE_FILES="$LARGE_FILES\n$file: $LINES lines"
+            fi
+          done
+
+          if [ -n "$LARGE_FILES" ]; then
+            echo "Warning: The following files exceed 300 lines:"
+            echo -e "$LARGE_FILES"
+            echo ""
+            echo "Consider splitting these files for better maintainability."
+          else
+            echo "All files are within acceptable line limits."
+          fi
+
+      - name: Verify documentation exists
+        run: |
+          echo "Checking for missing file documentation..."
+          MISSING_DOCS=""
+          for file in $(find Sources -name "*.swift"); do
+            # Check if file starts with a doc comment (/** or ///)
+            FIRST_LINES=$(head -20 "$file")
+            if ! echo "$FIRST_LINES" | grep -q "^///\|^/\*\*\|^\s*\*"; then
+              MISSING_DOCS="$MISSING_DOCS\n$file"
+            fi
+          done
+
+          if [ -n "$MISSING_DOCS" ]; then
+            echo "Warning: The following files may be missing documentation headers:"
+            echo -e "$MISSING_DOCS"
+          else
+            echo "All files appear to have documentation headers."
+          fi
+
+  validate-package:
+    name: Validate Package
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Validate Package.swift
+        run: |
+          echo "Validating Package.swift..."
+          swift package describe
+          echo ""
+          echo "Package structure is valid."
+
+      - name: Check dependencies
+        run: |
+          echo "Checking dependencies..."
+          swift package show-dependencies
