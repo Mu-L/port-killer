@@ -87,7 +87,7 @@ jobs:
       - name: Check dependencies
         run: |
           echo "Dependencies:"
-          swift package show-dependencies --format flat
+          swift package show-dependencies --format flatlist
 
       - name: Check for TODO/FIXME comments
         run: |
