@@ -34,6 +34,9 @@ struct SettingsView: View {
                 // MARK: - General
                 GeneralSettingsSection()
 
+                // MARK: - Port Forwarding
+                PortForwardingSettingsSection()
+
                 // MARK: - Keyboard Shortcuts
                 ShortcutsSection()
 

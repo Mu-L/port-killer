@@ -7,6 +7,8 @@ extension Defaults.Keys {
     static let portForwardConnections = Key<[PortForwardConnectionConfig]>("portForwardConnections", default: [])
     static let portForwardAutoStart = Key<Bool>("portForwardAutoStart", default: false)
     static let portForwardShowNotifications = Key<Bool>("portForwardShowNotifications", default: true)
+    static let customKubectlPath = Key<String?>("customKubectlPath", default: nil)
+    static let customSocatPath = Key<String?>("customSocatPath", default: nil)
 }
 
 // MARK: - Port Forward Manager

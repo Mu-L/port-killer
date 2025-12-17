@@ -1,4 +1,5 @@
 import Foundation
+import Defaults
 
 // MARK: - Dependency
 
@@ -65,11 +66,41 @@ actor DependencyChecker {
     }
 
     nonisolated var kubectlPath: String? {
-        kubectl.installedPath
+        // Check custom path first
+        if let custom = Defaults[.customKubectlPath],
+           !custom.isEmpty,
+           FileManager.default.fileExists(atPath: custom) {
+            return custom
+        }
+        return kubectl.installedPath
     }
 
     nonisolated var socatPath: String? {
-        socat.installedPath
+        // Check custom path first
+        if let custom = Defaults[.customSocatPath],
+           !custom.isEmpty,
+           FileManager.default.fileExists(atPath: custom) {
+            return custom
+        }
+        return socat.installedPath
+    }
+
+    nonisolated var isUsingCustomKubectl: Bool {
+        if let custom = Defaults[.customKubectlPath],
+           !custom.isEmpty,
+           FileManager.default.fileExists(atPath: custom) {
+            return true
+        }
+        return false
+    }
+
+    nonisolated var isUsingCustomSocat: Bool {
+        if let custom = Defaults[.customSocatPath],
+           !custom.isEmpty,
+           FileManager.default.fileExists(atPath: custom) {
+            return true
+        }
+        return false
     }
 
     func checkAndInstallMissing() async -> (success: Bool, message: String) {
