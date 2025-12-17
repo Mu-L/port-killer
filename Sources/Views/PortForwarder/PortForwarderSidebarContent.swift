@@ -172,10 +172,12 @@ struct ConnectionLogPanel: View {
                                             .font(.system(.caption, design: .monospaced))
                                             .foregroundStyle(log.isError ? .red : .primary)
                                             .textSelection(.enabled)
+                                            .frame(maxWidth: .infinity, alignment: .leading)
                                     }
                                     .id(log.id)
                                 }
                             }
+                            .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(12)
                         }
                         .onChange(of: conn.logs.count) {
