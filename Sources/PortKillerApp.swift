@@ -1,4 +1,5 @@
 import SwiftUI
+import Defaults
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -78,6 +79,12 @@ struct PortKillerApp: App {
                 .task {
                     // Pass state to AppDelegate for termination handling
                     appDelegate.appState = state
+
+                    // Auto-start port-forward connections if enabled
+                    if Defaults[.portForwardAutoStart] {
+                        try? await Task.sleep(for: .seconds(1))
+                        state.portForwardManager.startAll()
+                    }
 
                     try? await Task.sleep(for: .seconds(3))
                     sponsorManager.checkAndShowIfNeeded()
