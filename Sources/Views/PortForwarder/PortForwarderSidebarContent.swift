@@ -3,85 +3,93 @@ import SwiftUI
 struct PortForwarderSidebarContent: View {
     @Environment(AppState.self) private var appState
     @State private var discoveryManager: KubernetesDiscoveryManager?
-    @State private var selectedConnectionId: UUID?
-
-    private var selectedConnection: PortForwardConnectionState? {
-        guard let id = selectedConnectionId else { return nil }
-        return appState.portForwardManager.connections.first { $0.id == id }
-    }
 
     var body: some View {
-        HSplitView {
-            // Left: Connection list
-            VStack(spacing: 0) {
-                // Header with action buttons
-                HStack {
-                    Text("Connections")
-                        .font(.headline)
+        @Bindable var state = appState
 
-                    Spacer()
+        VStack(spacing: 0) {
+            // Header with action buttons
+            HStack {
+                Text("Connections")
+                    .font(.headline)
 
+                Spacer()
+
+                let manager = appState.portForwardManager
+
+                if !manager.connections.isEmpty {
                     Button {
-                        let config = PortForwardConnectionConfig(
-                            name: "New Connection",
-                            namespace: "default",
-                            service: "service-name",
-                            localPort: 8080,
-                            remotePort: 80
-                        )
-                        appState.portForwardManager.addConnection(config)
+                        manager.startAll()
                     } label: {
-                        Label("Add", systemImage: "plus.circle.fill")
+                        Label("Start All", systemImage: "play.fill")
                     }
                     .buttonStyle(.bordered)
-                    .help("Add Connection")
+                    .disabled(manager.allConnected)
 
                     Button {
-                        let dm = KubernetesDiscoveryManager(processManager: appState.portForwardManager.processManager)
-                        Task { await dm.loadNamespaces() }
-                        discoveryManager = dm
+                        manager.stopAll()
                     } label: {
-                        Label("Import", systemImage: "square.and.arrow.down.fill")
+                        Label("Stop All", systemImage: "stop.fill")
                     }
                     .buttonStyle(.bordered)
-                    .disabled(!DependencyChecker.shared.allRequiredInstalled)
-                    .help("Import from Kubernetes")
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
-
-                Divider()
-
-                // Dependency warning banner
-                if !DependencyChecker.shared.allRequiredInstalled {
-                    DependencyWarningBanner()
+                    .disabled(manager.connectedCount == 0)
                 }
 
-                // Main content
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 8) {
-                        // Connection cards
-                        ForEach(appState.portForwardManager.connections) { connection in
-                            PortForwardConnectionCard(
-                                connection: connection,
-                                isSelected: selectedConnectionId == connection.id,
-                                onSelect: { selectedConnectionId = connection.id }
-                            )
-                        }
-                    }
-                    .padding(16)
+                Button {
+                    let config = PortForwardConnectionConfig(
+                        name: "New Connection",
+                        namespace: "default",
+                        service: "service-name",
+                        localPort: 8080,
+                        remotePort: 80
+                    )
+                    appState.portForwardManager.addConnection(config)
+                } label: {
+                    Label("Add", systemImage: "plus.circle.fill")
                 }
+                .buttonStyle(.bordered)
+                .help("Add Connection")
 
-                Divider()
-
-                // Status bar
-                PortForwarderStatusBar()
+                Button {
+                    let dm = KubernetesDiscoveryManager(processManager: appState.portForwardManager.processManager)
+                    Task { await dm.loadNamespaces() }
+                    discoveryManager = dm
+                } label: {
+                    Label("Import", systemImage: "square.and.arrow.down.fill")
+                }
+                .buttonStyle(.bordered)
+                .disabled(!DependencyChecker.shared.allRequiredInstalled)
+                .help("Import from Kubernetes")
             }
-            .frame(minWidth: 350)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
 
-            // Right: Log panel
-            ConnectionLogPanel(connection: selectedConnection)
-                .frame(minWidth: 300)
+            Divider()
+
+            // Dependency warning banner
+            if !DependencyChecker.shared.allRequiredInstalled {
+                DependencyWarningBanner()
+            }
+
+            // Main content
+            ScrollView {
+                VStack(alignment: .leading, spacing: 8) {
+                    // Connection cards
+                    ForEach(appState.portForwardManager.connections) { connection in
+                        PortForwardConnectionCard(
+                            connection: connection,
+                            isSelected: state.selectedPortForwardConnectionId == connection.id,
+                            onSelect: { state.selectedPortForwardConnectionId = connection.id }
+                        )
+                    }
+                }
+                .padding(16)
+            }
+
+            Divider()
+
+            // Status bar
+            PortForwarderStatusBar()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .sheet(item: $discoveryManager) { dm in
@@ -319,25 +327,6 @@ struct PortForwarderStatusBar: View {
             }
 
             Spacer()
-
-            // Start/Stop All buttons
-            if !manager.connections.isEmpty {
-                Button {
-                    manager.startAll()
-                } label: {
-                    Text("Start All")
-                }
-                .buttonStyle(.bordered)
-                .disabled(manager.allConnected)
-
-                Button {
-                    manager.stopAll()
-                } label: {
-                    Text("Stop All")
-                }
-                .buttonStyle(.bordered)
-                .disabled(manager.connectedCount == 0)
-            }
         }
         .font(.caption)
         .foregroundStyle(.secondary)

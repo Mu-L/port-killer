@@ -65,6 +65,15 @@ final class AppState {
         return ports.first { $0.id == id }
     }
 
+    /// ID of the currently selected port-forward connection
+    var selectedPortForwardConnectionId: UUID? = nil
+
+    /// The currently selected port-forward connection, if any
+    var selectedPortForwardConnection: PortForwardConnectionState? {
+        guard let id = selectedPortForwardConnectionId else { return nil }
+        return portForwardManager.connections.first { $0.id == id }
+    }
+
     /**
      * Returns filtered ports based on sidebar selection and active filters.
      * This includes inactive placeholder entries for favorited/watched ports that aren't running.

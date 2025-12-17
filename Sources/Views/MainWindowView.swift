@@ -92,8 +92,10 @@ struct MainWindowView: View {
 
     @ViewBuilder
     private var detailView: some View {
-        if appState.selectedSidebarItem == .settings || appState.selectedSidebarItem == .sponsors || appState.selectedSidebarItem == .kubernetesPortForward {
+        if appState.selectedSidebarItem == .settings || appState.selectedSidebarItem == .sponsors {
             EmptyView()
+        } else if appState.selectedSidebarItem == .kubernetesPortForward {
+            ConnectionLogPanel(connection: appState.selectedPortForwardConnection)
         } else if let selectedPort = appState.selectedPort {
             PortDetailView(port: selectedPort)
         } else {
