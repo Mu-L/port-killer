@@ -3,6 +3,8 @@ import SwiftUI
 @main
 struct PortKillerApp: App {
     @State private var state = AppState()
+    @State private var sponsorManager = SponsorManager()
+    @Environment(\.openWindow) private var openWindow
 
     init() {
         // Disable automatic window tabbing (prevents Chrome-like tabs)
@@ -14,6 +16,17 @@ struct PortKillerApp: App {
         Window("PortKiller", id: "main") {
             MainWindowView()
                 .environment(state)
+                .environment(sponsorManager)
+                .task {
+                    try? await Task.sleep(for: .seconds(3))
+                    sponsorManager.checkAndShowIfNeeded()
+                }
+                .onChange(of: sponsorManager.shouldShowWindow) { _, shouldShow in
+                    if shouldShow {
+                        NSApp.activate(ignoringOtherApps: true)
+                        openWindow(id: "sponsors")
+                    }
+                }
         }
         .windowStyle(.automatic)
         .defaultSize(width: 1000, height: 600)
@@ -28,9 +41,18 @@ struct PortKillerApp: App {
             }
         }
 
+        // Sponsors Window
+        Window("Sponsors", id: "sponsors") {
+            SponsorsWindowView(sponsorManager: sponsorManager)
+        }
+        .windowStyle(.automatic)
+        .windowResizability(.contentSize)
+        .defaultPosition(.center)
+
         // Menu Bar (quick access)
         MenuBarExtra {
             MenuBarView(state: state)
+                .environment(sponsorManager)
         } label: {
             Image(nsImage: menuBarIcon())
         }
