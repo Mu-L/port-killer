@@ -17,6 +17,9 @@ struct PortForwardConnectionConfig: Identifiable, Codable, Equatable, Hashable, 
     var autoReconnect: Bool
     /// Direct exec mode: Uses kubectl exec + socat for true multi-connection support
     var useDirectExec: Bool
+    /// Notification settings
+    var notifyOnConnect: Bool
+    var notifyOnDisconnect: Bool
 
     init(
         id: UUID = UUID(),
@@ -28,7 +31,9 @@ struct PortForwardConnectionConfig: Identifiable, Codable, Equatable, Hashable, 
         proxyPort: Int? = nil,
         isEnabled: Bool = true,
         autoReconnect: Bool = true,
-        useDirectExec: Bool = true
+        useDirectExec: Bool = true,
+        notifyOnConnect: Bool = true,
+        notifyOnDisconnect: Bool = true
     ) {
         self.id = id
         self.name = name
@@ -40,6 +45,35 @@ struct PortForwardConnectionConfig: Identifiable, Codable, Equatable, Hashable, 
         self.isEnabled = isEnabled
         self.autoReconnect = autoReconnect
         self.useDirectExec = useDirectExec
+        self.notifyOnConnect = notifyOnConnect
+        self.notifyOnDisconnect = notifyOnDisconnect
+    }
+
+    // MARK: - Codable Migration
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+
+        // Required fields
+        id = try container.decode(UUID.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        namespace = try container.decode(String.self, forKey: .namespace)
+        service = try container.decode(String.self, forKey: .service)
+        localPort = try container.decode(Int.self, forKey: .localPort)
+        remotePort = try container.decode(Int.self, forKey: .remotePort)
+        proxyPort = try container.decodeIfPresent(Int.self, forKey: .proxyPort)
+        isEnabled = try container.decode(Bool.self, forKey: .isEnabled)
+        autoReconnect = try container.decode(Bool.self, forKey: .autoReconnect)
+        useDirectExec = try container.decode(Bool.self, forKey: .useDirectExec)
+
+        // New fields with defaults for migration
+        notifyOnConnect = try container.decodeIfPresent(Bool.self, forKey: .notifyOnConnect) ?? true
+        notifyOnDisconnect = try container.decodeIfPresent(Bool.self, forKey: .notifyOnDisconnect) ?? true
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, name, namespace, service, localPort, remotePort, proxyPort
+        case isEnabled, autoReconnect, useDirectExec
+        case notifyOnConnect, notifyOnDisconnect
     }
 }
 
@@ -93,6 +127,8 @@ final class PortForwardConnectionState: Identifiable, Hashable {
     var proxyTask: Task<Void, Never>?
     var lastError: String?
     var logs: [PortForwardLogEntry] = []
+    /// Tracks if the connection was stopped intentionally by the user (vs unexpected disconnect)
+    var isIntentionallyStopped: Bool = false
 
     func appendLog(_ message: String, type: PortForwardProcessType, isError: Bool = false) {
         let entry = PortForwardLogEntry(timestamp: Date(), message: message, type: type, isError: isError)

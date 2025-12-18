@@ -15,6 +15,8 @@ struct ConnectionEditSection: View {
     @State private var autoReconnect: Bool = true
     @State private var isEnabled: Bool = true
     @State private var useDirectExec: Bool = true
+    @State private var notifyOnConnect: Bool = true
+    @State private var notifyOnDisconnect: Bool = true
 
     // Kubernetes discovery
     @State private var namespaces: [KubernetesNamespace] = []
@@ -60,7 +62,9 @@ struct ConnectionEditSection: View {
                         proxyEnabled: $proxyEnabled,
                         useDirectExec: $useDirectExec,
                         autoReconnect: $autoReconnect,
-                        isEnabled: $isEnabled
+                        isEnabled: $isEnabled,
+                        notifyOnConnect: $notifyOnConnect,
+                        notifyOnDisconnect: $notifyOnDisconnect
                     )
                 }
                 .padding(16)
@@ -91,6 +95,8 @@ struct ConnectionEditSection: View {
         .onChange(of: autoReconnect) { saveToConnection() }
         .onChange(of: isEnabled) { saveToConnection() }
         .onChange(of: useDirectExec) { saveToConnection() }
+        .onChange(of: notifyOnConnect) { saveToConnection() }
+        .onChange(of: notifyOnDisconnect) { saveToConnection() }
     }
 
     // MARK: - Header
@@ -207,6 +213,8 @@ struct ConnectionEditSection: View {
         autoReconnect = connection.config.autoReconnect
         isEnabled = connection.config.isEnabled
         useDirectExec = connection.config.useDirectExec
+        notifyOnConnect = connection.config.notifyOnConnect
+        notifyOnDisconnect = connection.config.notifyOnDisconnect
     }
 
     private func saveToConnection() {
@@ -220,7 +228,9 @@ struct ConnectionEditSection: View {
             proxyPort: proxyEnabled ? Int(proxyPort) : nil,
             isEnabled: isEnabled,
             autoReconnect: autoReconnect,
-            useDirectExec: useDirectExec
+            useDirectExec: useDirectExec,
+            notifyOnConnect: notifyOnConnect,
+            notifyOnDisconnect: notifyOnDisconnect
         )
         appState.portForwardManager.updateConnection(newConfig)
     }

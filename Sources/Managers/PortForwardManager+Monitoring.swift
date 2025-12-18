@@ -44,9 +44,13 @@ extension PortForwardManager {
 
             // Reconnect on error
             if state.portForwardStatus == .connected && hasError {
+                let wasConnected = state.isFullyConnected
                 state.lastError = "kubectl error"
                 state.portForwardStatus = .disconnected
                 state.proxyStatus = .disconnected
+                if wasConnected {
+                    sendDisconnectNotificationIfEnabled(for: state.config, wasIntentional: state.isIntentionallyStopped)
+                }
                 await processManager.killProcesses(for: state.id)
                 await processManager.clearError(for: state.id)
                 startConnection(state.id)
@@ -55,18 +59,26 @@ extension PortForwardManager {
 
             // Reconnect if process died
             if state.portForwardStatus == .connected && !processRunning {
+                let wasConnected = state.isFullyConnected
                 state.lastError = "Process terminated"
                 state.portForwardStatus = .disconnected
                 state.proxyStatus = .disconnected
+                if wasConnected {
+                    sendDisconnectNotificationIfEnabled(for: state.config, wasIntentional: state.isIntentionallyStopped)
+                }
                 startConnection(state.id)
                 continue
             }
 
             // Reconnect if port not responding
             if state.portForwardStatus == .connected && !pfWorking {
+                let wasConnected = state.isFullyConnected
                 state.lastError = "Connection lost"
                 state.portForwardStatus = .disconnected
                 state.proxyStatus = .disconnected
+                if wasConnected {
+                    sendDisconnectNotificationIfEnabled(for: state.config, wasIntentional: state.isIntentionallyStopped)
+                }
                 await processManager.killProcesses(for: state.id)
                 startConnection(state.id)
                 continue
@@ -115,9 +127,13 @@ extension PortForwardManager {
         }
 
         if state.proxyStatus == .connected && hasError {
+            let wasConnected = state.isFullyConnected
             state.lastError = "Proxy error"
             state.portForwardStatus = .disconnected
             state.proxyStatus = .disconnected
+            if wasConnected {
+                sendDisconnectNotificationIfEnabled(for: state.config, wasIntentional: state.isIntentionallyStopped)
+            }
             await processManager.killProcesses(for: state.id)
             await processManager.clearError(for: state.id)
             startConnection(state.id)
@@ -125,9 +141,13 @@ extension PortForwardManager {
         }
 
         if state.proxyStatus == .connected && !proxyRunning {
+            let wasConnected = state.isFullyConnected
             state.lastError = "Proxy terminated"
             state.portForwardStatus = .disconnected
             state.proxyStatus = .disconnected
+            if wasConnected {
+                sendDisconnectNotificationIfEnabled(for: state.config, wasIntentional: state.isIntentionallyStopped)
+            }
             startConnection(state.id)
             return
         }

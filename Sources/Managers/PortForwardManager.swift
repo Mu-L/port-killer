@@ -120,6 +120,9 @@ final class PortForwardManager {
         guard let state = connections.first(where: { $0.id == id }) else { return }
         let config = state.config
 
+        // Reset intentional stop flag when starting
+        state.isIntentionallyStopped = false
+
         Task {
             await processManager.setLogHandler(for: id) { [weak state] message, type, isError in
                 Task { @MainActor in
@@ -150,6 +153,9 @@ final class PortForwardManager {
 
     func stopConnection(_ id: UUID) {
         guard let state = connections.first(where: { $0.id == id }) else { return }
+
+        // Mark as intentionally stopped to avoid disconnect notification
+        state.isIntentionallyStopped = true
 
         state.proxyTask?.cancel()
         state.proxyTask = nil

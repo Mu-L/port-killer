@@ -14,6 +14,8 @@ struct PortForwardConnectionEditForm: View {
     @State private var isEnabled: Bool
     @State private var autoReconnect: Bool
     @State private var useDirectExec: Bool
+    @State private var notifyOnConnect: Bool
+    @State private var notifyOnDisconnect: Bool
 
     init(connection: PortForwardConnectionState) {
         self.connection = connection
@@ -27,6 +29,8 @@ struct PortForwardConnectionEditForm: View {
         _isEnabled = State(initialValue: connection.config.isEnabled)
         _autoReconnect = State(initialValue: connection.config.autoReconnect)
         _useDirectExec = State(initialValue: connection.config.useDirectExec)
+        _notifyOnConnect = State(initialValue: connection.config.notifyOnConnect)
+        _notifyOnDisconnect = State(initialValue: connection.config.notifyOnDisconnect)
     }
 
     var body: some View {
@@ -128,6 +132,17 @@ struct PortForwardConnectionEditForm: View {
                     }
                     .toggleStyle(.checkbox)
                 }
+
+                GridRow {
+                    Text("Notifications").foregroundStyle(.secondary).frame(width: 80, alignment: .trailing)
+                    HStack(spacing: 16) {
+                        Toggle("On Connect", isOn: $notifyOnConnect)
+                            .onChange(of: notifyOnConnect) { save() }
+                        Toggle("On Disconnect", isOn: $notifyOnDisconnect)
+                            .onChange(of: notifyOnDisconnect) { save() }
+                    }
+                    .toggleStyle(.checkbox)
+                }
             }
         }
     }
@@ -143,6 +158,8 @@ struct PortForwardConnectionEditForm: View {
         config.isEnabled = isEnabled
         config.autoReconnect = autoReconnect
         config.useDirectExec = useDirectExec
+        config.notifyOnConnect = notifyOnConnect
+        config.notifyOnDisconnect = notifyOnDisconnect
         appState.portForwardManager.updateConnection(config)
     }
 }

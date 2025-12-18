@@ -30,7 +30,7 @@ extension PortForwardManager {
                         await self.runProxy(for: state, config: config)
                     }
                 } else {
-                    sendNotificationIfEnabled(title: "Connected", body: "\(config.name) is ready")
+                    sendConnectNotificationIfEnabled(for: config)
                 }
             } else {
                 state.portForwardStatus = .error
@@ -62,7 +62,7 @@ extension PortForwardManager {
 
             if process.isRunning {
                 state.proxyStatus = .connected
-                sendNotificationIfEnabled(title: "Connected", body: "\(config.name) is ready (multi-connection)")
+                sendConnectNotificationIfEnabled(for: config)
             } else {
                 state.proxyStatus = .error
                 state.portForwardStatus = .error
@@ -90,7 +90,7 @@ extension PortForwardManager {
 
             if process.isRunning {
                 state.proxyStatus = .connected
-                sendNotificationIfEnabled(title: "Connected", body: "\(config.name) is ready")
+                sendConnectNotificationIfEnabled(for: config)
             } else {
                 state.proxyStatus = .error
                 state.lastError = "Socat proxy failed to start"
@@ -101,9 +101,24 @@ extension PortForwardManager {
         }
     }
 
-    /// Sends a notification if notifications are enabled.
-    func sendNotificationIfEnabled(title: String, body: String) {
+    /// Sends a connect notification if enabled (global + per-connection).
+    func sendConnectNotificationIfEnabled(for config: PortForwardConnectionConfig) {
         guard Defaults[.portForwardShowNotifications] else { return }
-        NotificationService.shared.notify(title: title, body: body)
+        guard config.notifyOnConnect else { return }
+        NotificationService.shared.notify(
+            title: "Connected",
+            body: "\(config.name) is ready on port \(config.proxyPort ?? config.localPort)"
+        )
+    }
+
+    /// Sends a disconnect notification if enabled (global + per-connection).
+    func sendDisconnectNotificationIfEnabled(for config: PortForwardConnectionConfig, wasIntentional: Bool) {
+        guard !wasIntentional else { return }
+        guard Defaults[.portForwardShowNotifications] else { return }
+        guard config.notifyOnDisconnect else { return }
+        NotificationService.shared.notify(
+            title: "Disconnected",
+            body: "\(config.name) connection lost"
+        )
     }
 }
