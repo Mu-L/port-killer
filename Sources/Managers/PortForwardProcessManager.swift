@@ -361,44 +361,79 @@ actor PortForwardProcessManager {
         }
     }
 
-    private func executeKubectl(arguments: [String]) async throws -> String {
+    private nonisolated func executeKubectl(arguments: [String]) async throws -> String {
         guard let kubectlPath = DependencyChecker.shared.kubectlPath else {
             throw KubectlError.kubectlNotFound
         }
 
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: kubectlPath)
-        process.arguments = arguments
+        return try await withCheckedThrowingContinuation { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                let process = Process()
+                process.executableURL = URL(fileURLWithPath: kubectlPath)
+                process.arguments = arguments
 
-        let outputPipe = Pipe()
-        let errorPipe = Pipe()
-        process.standardOutput = outputPipe
-        process.standardError = errorPipe
+                let outputPipe = Pipe()
+                let errorPipe = Pipe()
+                process.standardOutput = outputPipe
+                process.standardError = errorPipe
 
-        do {
-            try process.run()
-            process.waitUntilExit()
+                // Collect output data asynchronously to avoid pipe buffer deadlock
+                var outputData = Data()
+                var errorData = Data()
+                let outputQueue = DispatchQueue(label: "kubectl.output")
+                let errorQueue = DispatchQueue(label: "kubectl.error")
 
-            let outputData = outputPipe.fileHandleForReading.readDataToEndOfFile()
-            let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
-            let output = String(data: outputData, encoding: .utf8) ?? ""
-            let errorOutput = String(data: errorData, encoding: .utf8) ?? ""
-
-            if process.terminationStatus != 0 {
-                if errorOutput.contains("Unable to connect") ||
-                   errorOutput.contains("connection refused") ||
-                   errorOutput.contains("no configuration") ||
-                   errorOutput.contains("dial tcp") {
-                    throw KubectlError.clusterNotConnected
+                outputPipe.fileHandleForReading.readabilityHandler = { handle in
+                    let data = handle.availableData
+                    if !data.isEmpty {
+                        outputQueue.sync { outputData.append(data) }
+                    }
                 }
-                throw KubectlError.executionFailed(errorOutput.isEmpty ? "Unknown error" : errorOutput.trimmingCharacters(in: .whitespacesAndNewlines))
-            }
 
-            return output
-        } catch let error as KubectlError {
-            throw error
-        } catch {
-            throw KubectlError.executionFailed(error.localizedDescription)
+                errorPipe.fileHandleForReading.readabilityHandler = { handle in
+                    let data = handle.availableData
+                    if !data.isEmpty {
+                        errorQueue.sync { errorData.append(data) }
+                    }
+                }
+
+                do {
+                    try process.run()
+                    process.waitUntilExit()
+
+                    // Stop reading handlers
+                    outputPipe.fileHandleForReading.readabilityHandler = nil
+                    errorPipe.fileHandleForReading.readabilityHandler = nil
+
+                    // Read any remaining data
+                    let remainingOutput = outputPipe.fileHandleForReading.readDataToEndOfFile()
+                    let remainingError = errorPipe.fileHandleForReading.readDataToEndOfFile()
+                    outputQueue.sync { outputData.append(remainingOutput) }
+                    errorQueue.sync { errorData.append(remainingError) }
+
+                    let output = String(data: outputData, encoding: .utf8) ?? ""
+                    let errorOutput = String(data: errorData, encoding: .utf8) ?? ""
+
+                    if process.terminationStatus != 0 {
+                        if errorOutput.contains("Unable to connect") ||
+                           errorOutput.contains("connection refused") ||
+                           errorOutput.contains("no configuration") ||
+                           errorOutput.contains("dial tcp") {
+                            continuation.resume(throwing: KubectlError.clusterNotConnected)
+                        } else {
+                            continuation.resume(throwing: KubectlError.executionFailed(
+                                errorOutput.isEmpty ? "Unknown error" : errorOutput.trimmingCharacters(in: .whitespacesAndNewlines)
+                            ))
+                        }
+                    } else {
+                        continuation.resume(returning: output)
+                    }
+                } catch {
+                    outputPipe.fileHandleForReading.readabilityHandler = nil
+                    errorPipe.fileHandleForReading.readabilityHandler = nil
+                    continuation.resume(throwing: error)
+                }
+            }
         }
     }
 }

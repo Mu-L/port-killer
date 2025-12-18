@@ -49,13 +49,23 @@ struct NamespacePanel: View {
                 }
                 .padding()
             } else {
-                List(namespaces, selection: .constant(selectedNamespace?.id)) { ns in
-                    Text(ns.name)
-                        .font(.system(.body, design: .monospaced))
-                        .tag(ns.id)
-                        .onTapGesture { onSelect(ns) }
+                ScrollView {
+                    LazyVStack(spacing: 1) {
+                        ForEach(namespaces) { ns in
+                            Button { onSelect(ns) } label: {
+                                HStack {
+                                    Text(ns.name)
+                                        .font(.system(.body, design: .monospaced))
+                                    Spacer()
+                                }
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 8)
+                                .background(selectedNamespace?.id == ns.id ? Color.accentColor.opacity(0.2) : Color.clear)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
                 }
-                .listStyle(.plain)
             }
         }
     }

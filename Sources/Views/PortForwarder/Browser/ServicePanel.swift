@@ -36,18 +36,28 @@ struct ServicePanel: View {
                     Spacer()
                 }
             } else {
-                List(services, selection: .constant(selectedService?.id)) { svc in
-                    VStack(alignment: .leading) {
-                        Text(svc.name)
-                            .font(.system(.body, design: .monospaced))
-                        Text("\(svc.type) \u{00B7} \(svc.ports.count) ports")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                ScrollView {
+                    LazyVStack(spacing: 1) {
+                        ForEach(services) { svc in
+                            Button { onSelect(svc) } label: {
+                                HStack {
+                                    VStack(alignment: .leading) {
+                                        Text(svc.name)
+                                            .font(.system(.body, design: .monospaced))
+                                        Text("\(svc.type) \u{00B7} \(svc.ports.count) ports")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    Spacer()
+                                }
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 8)
+                                .background(selectedService?.id == svc.id ? Color.accentColor.opacity(0.2) : Color.clear)
+                            }
+                            .buttonStyle(.plain)
+                        }
                     }
-                    .tag(svc.id)
-                    .onTapGesture { onSelect(svc) }
                 }
-                .listStyle(.plain)
             }
         }
     }
