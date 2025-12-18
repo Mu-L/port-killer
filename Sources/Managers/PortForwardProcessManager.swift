@@ -1,42 +1,7 @@
 import Foundation
 import Darwin
 
-// MARK: - Process Types
-
-enum PortForwardProcessType: String, Sendable {
-    case portForward = "kubectl"
-    case proxy = "socat"
-}
-
-// MARK: - Errors
-
-enum KubectlError: Error, LocalizedError, Sendable {
-    case kubectlNotFound
-    case executionFailed(String)
-    case parsingFailed(String)
-    case clusterNotConnected
-
-    var errorDescription: String? {
-        switch self {
-        case .kubectlNotFound:
-            return "kubectl not found. Please install kubernetes-cli."
-        case .executionFailed(let message):
-            return "kubectl failed: \(message)"
-        case .parsingFailed(let message):
-            return "Failed to parse response: \(message)"
-        case .clusterNotConnected:
-            return "Cannot connect to Kubernetes cluster. Check your kubectl configuration."
-        }
-    }
-}
-
 // MARK: - Process Manager Actor
-
-/// Callback for log output from port-forward processes
-typealias LogHandler = @Sendable (String, PortForwardProcessType, Bool) -> Void
-
-/// Callback for port conflict errors (address already in use)
-typealias PortConflictHandler = @Sendable (Int) -> Void
 
 actor PortForwardProcessManager {
     private var processes: [UUID: [PortForwardProcessType: Process]] = [:]
@@ -44,6 +9,8 @@ actor PortForwardProcessManager {
     private var connectionErrors: [UUID: Date] = [:]
     private var logHandlers: [UUID: LogHandler] = [:]
     private var portConflictHandlers: [UUID: PortConflictHandler] = [:]
+
+    // MARK: - Handler Management
 
     func setLogHandler(for id: UUID, handler: @escaping LogHandler) {
         logHandlers[id] = handler
@@ -88,11 +55,7 @@ actor PortForwardProcessManager {
         process.standardOutput = pipe
         process.standardError = pipe
 
-        do {
-            try process.run()
-        } catch {
-            throw error
-        }
+        try process.run()
 
         if processes[id] == nil {
             processes[id] = [:]
@@ -106,7 +69,6 @@ actor PortForwardProcessManager {
 
     // MARK: - Standard Proxy
 
-    /// Standard proxy mode: socat connects to already-running kubectl port-forward
     func startProxy(
         id: UUID,
         externalPort: Int,
@@ -127,11 +89,7 @@ actor PortForwardProcessManager {
         process.standardOutput = pipe
         process.standardError = pipe
 
-        do {
-            try process.run()
-        } catch {
-            throw error
-        }
+        try process.run()
 
         if processes[id] == nil {
             processes[id] = [:]
@@ -145,7 +103,6 @@ actor PortForwardProcessManager {
 
     // MARK: - Direct Exec Proxy (Multi-Connection)
 
-    /// Multi-connection proxy: socat spawns new kubectl port-forward for each connection
     func startDirectExecProxy(
         id: UUID,
         namespace: String,
@@ -161,41 +118,17 @@ actor PortForwardProcessManager {
             throw KubectlError.executionFailed("socat not found for multi-connection mode")
         }
 
-        // Create wrapper script - runs for each connection
-        let wrapperScript = """
-            #!/bin/bash
-            # Calculate unique port (30000-60000 range)
-            PORT=$((30000 + ($$ % 30000)))
+        let wrapperScript = createWrapperScript(
+            kubectlPath: kubectlPath,
+            socatPath: socatPath,
+            namespace: namespace,
+            service: service,
+            remotePort: remotePort
+        )
 
-            # Find another port if already in use
-            while /usr/bin/nc -z 127.0.0.1 $PORT 2>/dev/null; do
-                PORT=$((PORT + 1))
-            done
-
-            # Start kubectl port-forward
-            \(kubectlPath) port-forward -n \(namespace) svc/\(service) $PORT:\(remotePort) --address=127.0.0.1 >/dev/null 2>&1 &
-            KPID=$!
-
-            # Cleanup trap
-            trap "kill $KPID 2>/dev/null" EXIT
-
-            # Wait for port to open (max 5 seconds)
-            for i in 1 2 3 4 5 6 7 8 9 10; do
-                if /usr/bin/nc -z 127.0.0.1 $PORT 2>/dev/null; then
-                    break
-                fi
-                sleep 0.5
-            done
-
-            # Connect stdin/stdout to TCP using socat
-            \(socatPath) - TCP:127.0.0.1:$PORT
-            """
-
-        // Write script to temporary file
         let scriptPath = "/tmp/pf-wrapper-\(id.uuidString).sh"
         try wrapperScript.write(toFile: scriptPath, atomically: true, encoding: .utf8)
 
-        // Make executable
         let chmod = Process()
         chmod.executableURL = URL(fileURLWithPath: "/bin/chmod")
         chmod.arguments = ["+x", scriptPath]
@@ -213,11 +146,7 @@ actor PortForwardProcessManager {
         process.standardOutput = pipe
         process.standardError = pipe
 
-        do {
-            try process.run()
-        } catch {
-            throw error
-        }
+        try process.run()
 
         if processes[id] == nil {
             processes[id] = [:]
@@ -227,6 +156,30 @@ actor PortForwardProcessManager {
         startReadingOutput(pipe: pipe, id: id, type: .proxy)
 
         return process
+    }
+
+    private func createWrapperScript(
+        kubectlPath: String,
+        socatPath: String,
+        namespace: String,
+        service: String,
+        remotePort: Int
+    ) -> String {
+        """
+        #!/bin/bash
+        PORT=$((30000 + ($$ % 30000)))
+        while /usr/bin/nc -z 127.0.0.1 $PORT 2>/dev/null; do
+            PORT=$((PORT + 1))
+        done
+        \(kubectlPath) port-forward -n \(namespace) svc/\(service) $PORT:\(remotePort) --address=127.0.0.1 >/dev/null 2>&1 &
+        KPID=$!
+        trap "kill $KPID 2>/dev/null" EXIT
+        for i in 1 2 3 4 5 6 7 8 9 10; do
+            if /usr/bin/nc -z 127.0.0.1 $PORT 2>/dev/null; then break; fi
+            sleep 0.5
+        done
+        \(socatPath) - TCP:127.0.0.1:$PORT
+        """
     }
 
     // MARK: - Output Reading
@@ -242,41 +195,18 @@ actor PortForwardProcessManager {
                 if let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines), !output.isEmpty {
                     let lines = output.components(separatedBy: .newlines)
                     for line in lines where !line.isEmpty {
-                        let lowercased = line.lowercased()
-                        let isError = lowercased.contains("error") ||
-                                      lowercased.contains("failed") ||
-                                      lowercased.contains("unable to") ||
-                                      lowercased.contains("connection refused") ||
-                                      lowercased.contains("lost connection") ||
-                                      lowercased.contains("an error occurred")
+                        let isError = PortForwardOutputParser.isErrorLine(line)
 
                         if isError {
                             await self?.markConnectionError(id: id)
                         }
 
-                        // Detect port conflict: "address already in use"
-                        if lowercased.contains("address already in use") {
-                            var detectedPort: Int?
-
-                            // kubectl format: "listen tcp4 127.0.0.1:7700: bind: address already in use"
-                            if let portMatch = line.range(of: #"127\.0\.0\.1:(\d+)"#, options: .regularExpression) {
-                                let portStr = line[portMatch].split(separator: ":").last ?? ""
-                                detectedPort = Int(portStr)
-                            }
-                            // socat format: "bind(5, {LEN=16 AF=2 0.0.0.0:7699}, 16): Address already in use"
-                            else if let portMatch = line.range(of: #"0\.0\.0\.0:(\d+)"#, options: .regularExpression) {
-                                let portStr = line[portMatch].split(separator: ":").last ?? ""
-                                detectedPort = Int(portStr)
-                            }
-
-                            if let port = detectedPort {
-                                if let handler = await self?.portConflictHandlers[id] {
-                                    handler(port)
-                                }
+                        if let port = PortForwardOutputParser.detectPortConflict(in: line) {
+                            if let handler = await self?.portConflictHandlers[id] {
+                                handler(port)
                             }
                         }
 
-                        // Send log to handler
                         if let handler = await self?.logHandlers[id] {
                             handler(line, type, isError)
                         }
@@ -293,9 +223,7 @@ actor PortForwardProcessManager {
 
     // MARK: - Port Conflict Resolution
 
-    /// Kill any process listening on the specified port
     func killProcessOnPort(_ port: Int) async {
-        // Use lsof to find PID listening on the port
         let lsof = Process()
         lsof.executableURL = URL(fileURLWithPath: "/usr/sbin/lsof")
         lsof.arguments = ["-ti", "tcp:\(port)"]
@@ -311,21 +239,17 @@ actor PortForwardProcessManager {
             let data = pipe.fileHandleForReading.readDataToEndOfFile()
             if let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
                !output.isEmpty {
-                // Kill each PID found
                 let pids = output.components(separatedBy: .newlines)
                 for pidStr in pids {
                     if let pid = Int32(pidStr.trimmingCharacters(in: .whitespaces)) {
-                        // SIGTERM first
                         kill(pid, SIGTERM)
                     }
                 }
 
-                // Wait a bit then force kill if needed
                 try? await Task.sleep(for: .milliseconds(300))
 
                 for pidStr in pids {
                     if let pid = Int32(pidStr.trimmingCharacters(in: .whitespaces)) {
-                        // Check if still running, then SIGKILL
                         if kill(pid, 0) == 0 {
                             kill(pid, SIGKILL)
                         }
@@ -355,7 +279,6 @@ actor PortForwardProcessManager {
     // MARK: - Process Lifecycle
 
     func killProcesses(for id: UUID) {
-        // Cancel output reading tasks
         if let tasks = outputTasks[id] {
             for (_, task) in tasks {
                 task.cancel()
@@ -363,7 +286,6 @@ actor PortForwardProcessManager {
         }
         outputTasks[id] = nil
 
-        // Kill processes
         guard let procs = processes[id] else { return }
 
         for (_, process) in procs {
@@ -373,7 +295,6 @@ actor PortForwardProcessManager {
         }
         processes[id] = nil
 
-        // Cleanup temp wrapper script
         let scriptPath = "/tmp/pf-wrapper-\(id.uuidString).sh"
         try? FileManager.default.removeItem(atPath: scriptPath)
     }
@@ -382,48 +303,25 @@ actor PortForwardProcessManager {
         processes[id]?[type]?.isRunning ?? false
     }
 
-    /// Check if a port is actually accepting connections (TCP health check)
     func isPortOpen(port: Int) -> Bool {
-        let sock = Darwin.socket(AF_INET, SOCK_STREAM, 0)
-        guard sock >= 0 else { return false }
-        defer { Darwin.close(sock) }
-
-        var timeout = timeval(tv_sec: 1, tv_usec: 0)
-        setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, &timeout, socklen_t(MemoryLayout<timeval>.size))
-
-        var addr = sockaddr_in()
-        addr.sin_family = sa_family_t(AF_INET)
-        addr.sin_port = in_port_t(port).bigEndian
-        addr.sin_addr.s_addr = inet_addr("127.0.0.1")
-
-        let result = withUnsafePointer(to: &addr) {
-            $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
-                Darwin.connect(sock, $0, socklen_t(MemoryLayout<sockaddr_in>.size))
-            }
-        }
-
-        return result == 0
+        PortHealthChecker.isPortOpen(port: port)
     }
 
     func killAllPortForwarderProcesses() async {
-        // pkill kubectl port-forward
         let pkillKubectl = Process()
         pkillKubectl.executableURL = URL(fileURLWithPath: "/usr/bin/pkill")
         pkillKubectl.arguments = ["-9", "-f", "kubectl.*port-forward"]
         try? pkillKubectl.run()
         pkillKubectl.waitUntilExit()
 
-        // pkill socat TCP-LISTEN
         let pkillSocat = Process()
         pkillSocat.executableURL = URL(fileURLWithPath: "/usr/bin/pkill")
         pkillSocat.arguments = ["-9", "-f", "socat.*TCP-LISTEN"]
         try? pkillSocat.run()
         pkillSocat.waitUntilExit()
 
-        // Wait for ports to be freed
         try? await Task.sleep(for: .milliseconds(500))
 
-        // Clear internal tracking
         processes.removeAll()
         for (_, tasks) in outputTasks {
             for (_, task) in tasks { task.cancel() }

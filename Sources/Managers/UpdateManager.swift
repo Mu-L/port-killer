@@ -91,9 +91,6 @@ final class UpdateManager {
         isInitialized = true
 
         guard Self.isRunningFromBundle else {
-            #if DEBUG
-            print("[UpdateManager] Skipping Sparkle initialization (not running from .app bundle)")
-            #endif
             return
         }
 
