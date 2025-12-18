@@ -75,6 +75,11 @@ struct MainWindowView: View {
                 .id("sponsors")
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .navigationSplitViewColumnWidth(min: 400, ideal: 600, max: .infinity)
+        case .kubernetesPortForward:
+            PortForwarderSidebarContent()
+                .id("port-forwarder")
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .navigationSplitViewColumnWidth(min: 400, ideal: 600, max: .infinity)
         default:
             VStack(spacing: 0) {
                 PortTableView()
@@ -89,6 +94,8 @@ struct MainWindowView: View {
     private var detailView: some View {
         if appState.selectedSidebarItem == .settings || appState.selectedSidebarItem == .sponsors {
             EmptyView()
+        } else if appState.selectedSidebarItem == .kubernetesPortForward {
+            ConnectionLogPanel(connection: appState.selectedPortForwardConnection)
         } else if let selectedPort = appState.selectedPort {
             PortDetailView(port: selectedPort)
         } else {

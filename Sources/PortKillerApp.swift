@@ -1,7 +1,10 @@
 import SwiftUI
+import Defaults
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    var appState: AppState?
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Start as accessory (menu bar only, no Dock icon)
         NSApp.setActivationPolicy(.accessory)
@@ -37,6 +40,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Hide from Dock when main window closes
         NSApp.setActivationPolicy(.accessory)
     }
+
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        guard let appState = appState else {
+            return .terminateNow
+        }
+
+        // Kill all port-forward connections before terminating
+        Task {
+            await appState.portForwardManager.killStuckProcesses()
+            await MainActor.run {
+                NSApp.reply(toApplicationShouldTerminate: true)
+            }
+        }
+
+        return .terminateLater
+    }
 }
 
 @main
@@ -58,6 +77,15 @@ struct PortKillerApp: App {
                 .environment(state)
                 .environment(sponsorManager)
                 .task {
+                    // Pass state to AppDelegate for termination handling
+                    appDelegate.appState = state
+
+                    // Auto-start port-forward connections if enabled
+                    if Defaults[.portForwardAutoStart] {
+                        try? await Task.sleep(for: .seconds(1))
+                        state.portForwardManager.startAll()
+                    }
+
                     try? await Task.sleep(for: .seconds(3))
                     sponsorManager.checkAndShowIfNeeded()
                 }
@@ -81,7 +109,23 @@ struct PortKillerApp: App {
 				}
 				.disabled(!state.updateManager.canCheckForUpdates)
             }
+
+            CommandGroup(after: .newItem) {
+                Button("Open Port Forwarder Window") {
+                    NSApp.activate(ignoringOtherApps: true)
+                    openWindow(id: "port-forwarder")
+                }
+                .keyboardShortcut("k", modifiers: [.command, .shift])
+            }
         }
+
+        // Port Forwarder Window
+        Window("Port Forwarder", id: "port-forwarder") {
+            PortForwarderWindowView()
+                .environment(state)
+        }
+        .windowStyle(.automatic)
+        .defaultSize(width: 900, height: 650)
 
         // Menu Bar (quick access)
         MenuBarExtra {

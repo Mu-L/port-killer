@@ -65,6 +65,15 @@ final class AppState {
         return ports.first { $0.id == id }
     }
 
+    /// ID of the currently selected port-forward connection
+    var selectedPortForwardConnectionId: UUID? = nil
+
+    /// The currently selected port-forward connection, if any
+    var selectedPortForwardConnection: PortForwardConnectionState? {
+        guard let id = selectedPortForwardConnectionId else { return nil }
+        return portForwardManager.connections.first { $0.id == id }
+    }
+
     /**
      * Returns filtered ports based on sidebar selection and active filters.
      * This includes inactive placeholder entries for favorited/watched ports that aren't running.
@@ -77,7 +86,7 @@ final class AppState {
 
         // Apply sidebar selection
         switch selectedSidebarItem {
-        case .allPorts, .settings, .sponsors:
+        case .allPorts, .settings, .sponsors, .kubernetesPortForward:
             result = ports
         case .favorites:
             // Single pass: collect active favorites and track which ports are active
@@ -146,6 +155,11 @@ final class AppState {
 
     /// Manages Sparkle auto-update functionality
     let updateManager = UpdateManager()
+
+    // MARK: - Port Forward Manager
+
+    /// Manages Kubernetes port-forward connections
+    let portForwardManager = PortForwardManager()
 
     // MARK: - Private Properties
 
