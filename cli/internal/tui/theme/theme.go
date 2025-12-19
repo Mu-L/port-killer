@@ -2,34 +2,26 @@ package theme
 
 import "github.com/charmbracelet/lipgloss"
 
-// CharmTone-inspired color palette
-// Based on Charmbracelet's design system
+// High-contrast color palette using basic ANSI colors (0-15)
+// These are the brightest and most readable in any terminal
 
-// Background tones (dark to light)
+// Text colors
 var (
-	Pepper   = lipgloss.Color("#1a1a1a") // Darkest bg
-	Charcoal = lipgloss.Color("#242424") // Base bg
-	Iron     = lipgloss.Color("#2e2e2e") // Elevated bg
-	Smoke    = lipgloss.Color("#383838") // Selection bg
-	Oyster   = lipgloss.Color("#424242") // Hover bg
+	White    = lipgloss.Color("15") // Bright white
+	Gray     = lipgloss.Color("7")  // Normal white/gray
+	DarkGray = lipgloss.Color("8")  // Bright black (dark gray)
+	DimGray  = lipgloss.Color("8")  // Same as dark gray
 )
 
-// Text tones (light to dark)
+// Accent colors - BASIC ANSI bright colors (most visible)
 var (
-	Salt  = lipgloss.Color("#e8e8e8") // Primary text
-	Ash   = lipgloss.Color("#a0a0a0") // Secondary text
-	Squid = lipgloss.Color("#666666") // Muted text
-	BBQ   = lipgloss.Color("#444444") // Disabled text
-)
-
-// Accent colors (vibrant but not harsh)
-var (
-	Malibu = lipgloss.Color("#7aa2f7") // Blue - selection, links
-	Guac   = lipgloss.Color("#9ece6a") // Green - success
-	Coral  = lipgloss.Color("#f7768e") // Red - danger, errors
-	Citron = lipgloss.Color("#e0af68") // Yellow/Orange - warning, favorites
-	Lilac  = lipgloss.Color("#bb9af7") // Purple - other/misc
-	Cyan   = lipgloss.Color("#7dcfff") // Cyan - info, watched
+	Red    = lipgloss.Color("9")  // Bright red
+	Green  = lipgloss.Color("10") // Bright green
+	Yellow = lipgloss.Color("11") // Bright yellow
+	Blue   = lipgloss.Color("12") // Bright blue
+	Pink   = lipgloss.Color("13") // Bright magenta/pink
+	Cyan   = lipgloss.Color("14") // Bright cyan
+	Orange = lipgloss.Color("11") // Use yellow as orange alternative
 )
 
 // Theme holds the current color scheme
@@ -39,12 +31,6 @@ type Theme struct {
 	Secondary lipgloss.Color
 	Muted     lipgloss.Color
 	Disabled  lipgloss.Color
-
-	// Background colors
-	BgBase      lipgloss.Color
-	BgElevated  lipgloss.Color
-	BgSelection lipgloss.Color
-	BgHover     lipgloss.Color
 
 	// Semantic colors
 	Accent  lipgloss.Color
@@ -62,36 +48,30 @@ type Theme struct {
 }
 
 // current holds the active theme
-var current = Dark()
+var current = Default()
 
-// Dark returns the dark theme (default)
-func Dark() Theme {
+// Default returns the default high-contrast theme
+func Default() Theme {
 	return Theme{
-		// Text
-		Primary:   Salt,
-		Secondary: Ash,
-		Muted:     Squid,
-		Disabled:  BBQ,
+		// Text - high contrast
+		Primary:   White,
+		Secondary: Gray,
+		Muted:     DarkGray,
+		Disabled:  DimGray,
 
-		// Backgrounds
-		BgBase:      Charcoal,
-		BgElevated:  Iron,
-		BgSelection: Smoke,
-		BgHover:     Oyster,
-
-		// Semantic
-		Accent:  Malibu,
-		Success: Guac,
-		Warning: Citron,
-		Danger:  Coral,
+		// Semantic - bright colors
+		Accent:  Cyan,
+		Success: Green,
+		Warning: Yellow,
+		Danger:  Red,
 		Info:    Cyan,
 
-		// Process types
-		WebServer:   Malibu,
-		Database:    Guac,
-		Development: Citron,
-		System:      Squid,
-		Other:       Lilac,
+		// Process types - bright & distinct
+		WebServer:   Cyan,   // Cyan for web
+		Database:    Green,  // Green for database
+		Development: Yellow, // Yellow for dev tools
+		System:      Gray,   // Gray for system
+		Other:       Pink,   // Pink for other
 	}
 }
 
@@ -122,56 +102,58 @@ func (t Theme) TextMuted() lipgloss.Style {
 
 // Logo/Brand style
 func (t Theme) Logo() lipgloss.Style {
-	return lipgloss.NewStyle().Foreground(t.Accent).Bold(true)
+	return lipgloss.NewStyle().Foreground(Cyan).Bold(true)
 }
 
 func (t Theme) LogoText() lipgloss.Style {
-	return lipgloss.NewStyle().Foreground(t.Primary).Bold(true)
+	return lipgloss.NewStyle().Foreground(White).Bold(true)
 }
 
-// Selection style
+// Header style for section titles
+func (t Theme) Header() lipgloss.Style {
+	return lipgloss.NewStyle().Foreground(Gray)
+}
+
+// Selection style - reverse video for visibility
 func (t Theme) Selected() lipgloss.Style {
-	return lipgloss.NewStyle().
-		Foreground(t.Primary).
-		Background(t.BgSelection).
-		Bold(true)
+	return lipgloss.NewStyle().Reverse(true).Bold(true)
 }
 
 // Cursor indicator
 func (t Theme) Cursor() lipgloss.Style {
-	return lipgloss.NewStyle().Foreground(t.Accent)
+	return lipgloss.NewStyle().Foreground(Cyan).Bold(true)
 }
 
-// AccentStyle style for highlighted items
+// AccentStyle for highlighted items
 func (t Theme) AccentStyle() lipgloss.Style {
 	return lipgloss.NewStyle().Foreground(t.Accent)
 }
 
-// InfoStyle style for informational messages
+// InfoStyle for informational messages
 func (t Theme) InfoStyle() lipgloss.Style {
 	return lipgloss.NewStyle().Foreground(t.Info)
 }
 
 // Status indicators
 func (t Theme) Favorite() lipgloss.Style {
-	return lipgloss.NewStyle().Foreground(t.Warning)
+	return lipgloss.NewStyle().Foreground(Yellow)
 }
 
 func (t Theme) Watched() lipgloss.Style {
-	return lipgloss.NewStyle().Foreground(t.Info)
+	return lipgloss.NewStyle().Foreground(Blue)
 }
 
 // Message styles
 func (t Theme) SuccessMsg() lipgloss.Style {
-	return lipgloss.NewStyle().Foreground(t.Success)
+	return lipgloss.NewStyle().Foreground(Green)
 }
 
 func (t Theme) ErrorMsg() lipgloss.Style {
-	return lipgloss.NewStyle().Foreground(t.Danger)
+	return lipgloss.NewStyle().Foreground(Red)
 }
 
 func (t Theme) WarningMsg() lipgloss.Style {
-	return lipgloss.NewStyle().Foreground(t.Warning)
+	return lipgloss.NewStyle().Foreground(Orange)
 }
 
 // Process type style
@@ -194,24 +176,24 @@ func (t Theme) ProcessType(ptype string) lipgloss.Style {
 
 // Help key style
 func (t Theme) HelpKey() lipgloss.Style {
-	return lipgloss.NewStyle().Foreground(t.Secondary)
+	return lipgloss.NewStyle().Foreground(Cyan)
 }
 
 func (t Theme) HelpDesc() lipgloss.Style {
-	return lipgloss.NewStyle().Foreground(t.Muted)
+	return lipgloss.NewStyle().Foreground(Gray)
 }
 
 // Dialog styles
 func (t Theme) DialogBorder() lipgloss.Style {
 	return lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(t.Muted).
+		BorderForeground(Gray).
 		Padding(1, 2)
 }
 
 func (t Theme) DialogDanger() lipgloss.Style {
 	return lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(t.Danger).
+		BorderForeground(Red).
 		Padding(1, 2)
 }

@@ -129,7 +129,7 @@ func (a *App) renderPortList() string {
 		hdr = fmt.Sprintf("        %-*s %-*s %-*s",
 			cols.Port, "PORT", cols.PID, "PID", cols.Process, "PROCESS")
 	}
-	b.WriteString(t.TextMuted().Render(hdr) + "\n")
+	b.WriteString(t.Header().Render(hdr) + "\n")
 
 	// Rows
 	for i := start; i < end; i++ {
@@ -561,6 +561,30 @@ func (a *App) viewHelp() string {
 		}
 		b.WriteString("\n")
 	}
+
+	// Process type legend
+	b.WriteString("  " + t.TextSecondary().Render("Process Types") + "\n")
+	types := []struct {
+		ptype string
+		desc  string
+	}{
+		{"WebServer", "nginx, apache, node http"},
+		{"Database", "mysql, postgres, redis, mongo"},
+		{"Development", "webpack, vite, npm, go"},
+		{"System", "system services"},
+		{"Other", "other processes"},
+	}
+	for _, pt := range types {
+		dot := t.ProcessType(pt.ptype).Render("●")
+		b.WriteString(fmt.Sprintf("    %s %s\n", dot, t.HelpDesc().Render(pt.desc)))
+	}
+	b.WriteString("\n")
+
+	// Icons legend
+	b.WriteString("  " + t.TextSecondary().Render("Icons") + "\n")
+	b.WriteString(fmt.Sprintf("    %s %s\n", t.Favorite().Render("★"), t.HelpDesc().Render("favorite")))
+	b.WriteString(fmt.Sprintf("    %s %s\n", t.Watched().Render("◉"), t.HelpDesc().Render("watched")))
+	b.WriteString("\n")
 
 	b.WriteString("  " + t.TextMuted().Render("Press ? or ESC to close"))
 	return b.String()
