@@ -15,6 +15,7 @@ portkiller-core.workspace = true
 uniffi = { version = "0.28", features = ["tokio", "cli"] }
 tokio.workspace = true
 thiserror.workspace = true
+uuid.workspace = true
 
 [build-dependencies]
 uniffi = { version = "0.28", features = ["build"] }

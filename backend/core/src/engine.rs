@@ -8,11 +8,15 @@ use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::RwLock;
 
-use tokio::runtime::Runtime;
+use tokio::runtime::{Builder, Runtime};
 
 use crate::config::ConfigStore;
 use crate::error::Result;
 use crate::killer::ProcessKiller;
+use crate::kubernetes::{
+    KubernetesConnectionManager, KubernetesNamespace, KubernetesService,
+    PortForwardConnectionConfig, PortForwardConnectionState, PortForwardNotification,
+};
 use crate::models::{filter_ports, PortFilter, PortInfo, WatchedPort};
 use crate::scanner::PortScanner;
 
@@ -40,6 +44,9 @@ pub struct PortKillerEngine {
     config: ConfigStore,
     runtime: Runtime,
 
+    // Kubernetes
+    kubernetes: KubernetesConnectionManager,
+
     // State (protected by RwLock for thread safety)
     ports: RwLock<Vec<PortInfo>>,
     previous_states: RwLock<HashMap<u16, bool>>,
@@ -55,9 +62,27 @@ pub struct PortKillerEngine {
 }
 
 impl PortKillerEngine {
+    /// Ensure the config directory exists.
+    fn ensure_config_dir() -> Result<()> {
+        let config_dir = dirs::home_dir()
+            .ok_or_else(|| crate::error::Error::Config("Could not find home directory".to_string()))?
+            .join(".portkiller");
+
+        std::fs::create_dir_all(&config_dir)
+            .map_err(|e| crate::error::Error::Config(format!("Failed to create config directory: {}", e)))?;
+
+        Ok(())
+    }
+
     /// Create a new engine instance.
     pub fn new() -> Result<Self> {
-        let runtime = Runtime::new()
+        // Ensure config directory exists before anything else
+        Self::ensure_config_dir()?;
+
+        // Use single-threaded runtime - lighter on resources for GUI app
+        let runtime = Builder::new_current_thread()
+            .enable_all()
+            .build()
             .map_err(|e| crate::error::Error::Config(format!("Failed to create runtime: {}", e)))?;
         let config = ConfigStore::new()?;
 
@@ -65,11 +90,20 @@ impl PortKillerEngine {
         let favorites = runtime.block_on(config.get_favorites())?;
         let watched = runtime.block_on(config.get_watched_ports())?;
 
+        // Create Kubernetes connection manager
+        let kubernetes = KubernetesConnectionManager::new()
+            .map_err(|e| crate::error::Error::Config(format!("Failed to create Kubernetes manager: {}", e)))?;
+
+        // Load Kubernetes connections
+        runtime.block_on(kubernetes.reload_connections())
+            .map_err(|e| crate::error::Error::Config(format!("Failed to load Kubernetes connections: {}", e)))?;
+
         Ok(Self {
             scanner: PortScanner::new(),
             killer: ProcessKiller::new(),
             config,
             runtime,
+            kubernetes,
             ports: RwLock::new(Vec::new()),
             previous_states: RwLock::new(HashMap::new()),
             pending_notifications: RwLock::new(Vec::new()),
@@ -342,7 +376,176 @@ impl PortKillerEngine {
         *self.favorites_cache.write().unwrap() = favorites;
         *self.watched_cache.write().unwrap() = watched;
 
+        // Reload Kubernetes connections
+        self.runtime
+            .block_on(self.kubernetes.reload_connections())
+            .map_err(|e| crate::error::Error::Config(format!("Failed to reload Kubernetes connections: {}", e)))?;
+
         Ok(())
+    }
+
+    // =========================================================================
+    // MARK: - Settings
+    // =========================================================================
+
+    /// Get the refresh interval in seconds.
+    pub fn get_settings_refresh_interval(&self) -> Result<u64> {
+        self.runtime.block_on(self.config.get_refresh_interval())
+    }
+
+    /// Set the refresh interval in seconds.
+    pub fn set_settings_refresh_interval(&self, interval: u64) -> Result<()> {
+        self.runtime.block_on(self.config.set_refresh_interval(interval))
+    }
+
+    /// Get port forward auto-start setting.
+    pub fn get_settings_port_forward_auto_start(&self) -> Result<bool> {
+        self.runtime.block_on(self.config.get_port_forward_auto_start())
+    }
+
+    /// Set port forward auto-start setting.
+    pub fn set_settings_port_forward_auto_start(&self, enabled: bool) -> Result<()> {
+        self.runtime.block_on(self.config.set_port_forward_auto_start(enabled))
+    }
+
+    /// Get port forward show notifications setting.
+    pub fn get_settings_port_forward_show_notifications(&self) -> Result<bool> {
+        self.runtime.block_on(self.config.get_port_forward_show_notifications())
+    }
+
+    /// Set port forward show notifications setting.
+    pub fn set_settings_port_forward_show_notifications(&self, enabled: bool) -> Result<()> {
+        self.runtime.block_on(self.config.set_port_forward_show_notifications(enabled))
+    }
+
+    // =========================================================================
+    // MARK: - Kubernetes Discovery
+    // =========================================================================
+
+    /// Fetches all Kubernetes namespaces.
+    pub fn fetch_namespaces(&self) -> Result<Vec<KubernetesNamespace>> {
+        self.runtime
+            .block_on(self.kubernetes.fetch_namespaces())
+            .map_err(|e| crate::error::Error::CommandFailed(e.to_string()))
+    }
+
+    /// Fetches services in a specific namespace.
+    pub fn fetch_services(&self, namespace: &str) -> Result<Vec<KubernetesService>> {
+        self.runtime
+            .block_on(self.kubernetes.fetch_services(namespace))
+            .map_err(|e| crate::error::Error::CommandFailed(e.to_string()))
+    }
+
+    /// Returns true if kubectl is available.
+    pub fn is_kubectl_available(&self) -> bool {
+        self.kubernetes.is_kubectl_available()
+    }
+
+    /// Returns true if socat is available.
+    pub fn is_socat_available(&self) -> bool {
+        self.kubernetes.is_socat_available()
+    }
+
+    // =========================================================================
+    // MARK: - Kubernetes Port Forward Connections
+    // =========================================================================
+
+    /// Gets all port forward connections.
+    pub fn get_port_forward_connections(&self) -> Vec<PortForwardConnectionConfig> {
+        self.kubernetes.get_connections_cached()
+    }
+
+    /// Adds a new port forward connection.
+    pub fn add_port_forward_connection(&self, config: PortForwardConnectionConfig) -> Result<()> {
+        self.runtime
+            .block_on(self.kubernetes.add_connection(config))
+            .map_err(|e| crate::error::Error::Config(e.to_string()))
+    }
+
+    /// Removes a port forward connection.
+    pub fn remove_port_forward_connection(&self, id: &str) -> Result<()> {
+        let uuid = uuid::Uuid::parse_str(id)
+            .map_err(|e| crate::error::Error::Config(format!("Invalid UUID: {}", e)))?;
+        self.runtime
+            .block_on(self.kubernetes.remove_connection(uuid))
+            .map_err(|e| crate::error::Error::Config(e.to_string()))
+    }
+
+    /// Updates a port forward connection.
+    pub fn update_port_forward_connection(&self, config: PortForwardConnectionConfig) -> Result<()> {
+        self.runtime
+            .block_on(self.kubernetes.update_connection(config))
+            .map_err(|e| crate::error::Error::Config(e.to_string()))
+    }
+
+    // =========================================================================
+    // MARK: - Kubernetes Port Forward Control
+    // =========================================================================
+
+    /// Starts a port forward connection.
+    pub fn start_port_forward(&self, id: &str) -> Result<()> {
+        let uuid = uuid::Uuid::parse_str(id)
+            .map_err(|e| crate::error::Error::Config(format!("Invalid UUID: {}", e)))?;
+        self.kubernetes
+            .start_connection(uuid)
+            .map_err(|e| crate::error::Error::CommandFailed(e.to_string()))
+    }
+
+    /// Stops a port forward connection.
+    pub fn stop_port_forward(&self, id: &str) -> Result<()> {
+        let uuid = uuid::Uuid::parse_str(id)
+            .map_err(|e| crate::error::Error::Config(format!("Invalid UUID: {}", e)))?;
+        self.kubernetes
+            .stop_connection(uuid)
+            .map_err(|e| crate::error::Error::CommandFailed(e.to_string()))
+    }
+
+    /// Restarts a port forward connection.
+    pub fn restart_port_forward(&self, id: &str) -> Result<()> {
+        let uuid = uuid::Uuid::parse_str(id)
+            .map_err(|e| crate::error::Error::Config(format!("Invalid UUID: {}", e)))?;
+        self.kubernetes
+            .restart_connection(uuid)
+            .map_err(|e| crate::error::Error::CommandFailed(e.to_string()))
+    }
+
+    /// Stops all port forward connections.
+    pub fn stop_all_port_forwards(&self) -> Result<()> {
+        self.kubernetes
+            .stop_all()
+            .map_err(|e| crate::error::Error::CommandFailed(e.to_string()))
+    }
+
+    // =========================================================================
+    // MARK: - Kubernetes Port Forward State & Monitoring
+    // =========================================================================
+
+    /// Gets all port forward connection states.
+    pub fn get_port_forward_states(&self) -> Vec<PortForwardConnectionState> {
+        self.kubernetes.get_states()
+    }
+
+    /// Gets a single port forward connection state.
+    pub fn get_port_forward_state(&self, id: &str) -> Option<PortForwardConnectionState> {
+        let uuid = uuid::Uuid::parse_str(id).ok()?;
+        self.kubernetes.get_state(uuid)
+    }
+
+    /// Gets and clears pending port forward notifications.
+    pub fn get_port_forward_notifications(&self) -> Vec<PortForwardNotification> {
+        self.kubernetes.get_pending_notifications()
+    }
+
+    /// Checks if there are pending port forward notifications.
+    pub fn has_port_forward_notifications(&self) -> bool {
+        self.kubernetes.has_pending_notifications()
+    }
+
+    /// Monitors port forward connections and performs auto-reconnect if needed.
+    ///
+    /// This should be called periodically (e.g., every 1 second).
+    pub fn monitor_port_forwards(&self) {
+        self.kubernetes.monitor_connections();
     }
 }
 

@@ -16,6 +16,7 @@ pub mod config;
 pub mod engine;
 pub mod error;
 pub mod killer;
+pub mod kubernetes;
 pub mod models;
 pub mod scanner;
 

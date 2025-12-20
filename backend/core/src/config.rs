@@ -16,7 +16,7 @@ use crate::models::WatchedPort;
 /// Configuration data stored in JSON format.
 ///
 /// This structure matches the Swift app's SharedConfig format for compatibility.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
     /// List of favorite port numbers.
     #[serde(default)]
@@ -25,6 +25,34 @@ pub struct Config {
     /// List of watched ports with notification settings.
     #[serde(default, rename = "watchedPorts")]
     pub watched_ports: Vec<WatchedPortJson>,
+
+    /// Port scan refresh interval in seconds.
+    #[serde(default = "default_refresh_interval", rename = "refreshInterval")]
+    pub refresh_interval: u64,
+
+    /// Auto-start port forward connections on app launch.
+    #[serde(default = "default_true", rename = "portForwardAutoStart")]
+    pub port_forward_auto_start: bool,
+
+    /// Show notifications for port forward status changes.
+    #[serde(default = "default_true", rename = "portForwardShowNotifications")]
+    pub port_forward_show_notifications: bool,
+}
+
+fn default_refresh_interval() -> u64 {
+    5
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            favorites: Vec::new(),
+            watched_ports: Vec::new(),
+            refresh_interval: default_refresh_interval(),
+            port_forward_auto_start: true,
+            port_forward_show_notifications: true,
+        }
+    }
 }
 
 /// JSON representation of a watched port (matches Swift app format).
@@ -248,6 +276,49 @@ impl ConfigStore {
         } else {
             Err(Error::Config(format!("Port {} is not being watched", port)))
         }
+    }
+
+    // =========================================================================
+    // Settings
+    // =========================================================================
+
+    /// Get the refresh interval in seconds.
+    pub async fn get_refresh_interval(&self) -> Result<u64> {
+        let config = self.load().await?;
+        Ok(config.refresh_interval)
+    }
+
+    /// Set the refresh interval in seconds.
+    pub async fn set_refresh_interval(&self, interval: u64) -> Result<()> {
+        let mut config = self.load().await?;
+        config.refresh_interval = interval;
+        self.save(&config).await
+    }
+
+    /// Get port forward auto-start setting.
+    pub async fn get_port_forward_auto_start(&self) -> Result<bool> {
+        let config = self.load().await?;
+        Ok(config.port_forward_auto_start)
+    }
+
+    /// Set port forward auto-start setting.
+    pub async fn set_port_forward_auto_start(&self, enabled: bool) -> Result<()> {
+        let mut config = self.load().await?;
+        config.port_forward_auto_start = enabled;
+        self.save(&config).await
+    }
+
+    /// Get port forward show notifications setting.
+    pub async fn get_port_forward_show_notifications(&self) -> Result<bool> {
+        let config = self.load().await?;
+        Ok(config.port_forward_show_notifications)
+    }
+
+    /// Set port forward show notifications setting.
+    pub async fn set_port_forward_show_notifications(&self, enabled: bool) -> Result<()> {
+        let mut config = self.load().await?;
+        config.port_forward_show_notifications = enabled;
+        self.save(&config).await
     }
 }
 

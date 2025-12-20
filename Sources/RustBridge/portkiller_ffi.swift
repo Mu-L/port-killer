@@ -431,6 +431,22 @@ fileprivate struct FfiConverterUInt32: FfiConverterPrimitive {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterUInt64: FfiConverterPrimitive {
+    typealias FfiType = UInt64
+    typealias SwiftType = UInt64
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> UInt64 {
+        return try lift(readInt(&buf))
+    }
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        writeInt(&buf, lower(value))
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterBool : FfiConverter {
     typealias FfiType = Int8
     typealias SwiftType = Bool
@@ -500,23 +516,47 @@ public protocol RustEngineProtocol : AnyObject {
     
     func addFavorite(port: UInt16) throws 
     
+    func addPortForwardConnection(config: RustPortForwardConfig) throws 
+    
     func addWatchedPort(port: UInt16, notifyOnStart: Bool, notifyOnStop: Bool) throws  -> RustWatchedPort
+    
+    func fetchNamespaces() throws  -> [RustKubernetesNamespace]
+    
+    func fetchServices(namespace: String) throws  -> [RustKubernetesService]
     
     func getFavorites()  -> [UInt16]
     
     func getPendingNotifications()  -> [RustNotification]
     
+    func getPortForwardConnections()  -> [RustPortForwardConfig]
+    
+    func getPortForwardNotifications()  -> [RustPortForwardNotification]
+    
+    func getPortForwardStates()  -> [RustPortForwardState]
+    
     func getPorts()  -> [RustPortInfo]
+    
+    func getSettingsPortForwardAutoStart() throws  -> Bool
+    
+    func getSettingsPortForwardShowNotifications() throws  -> Bool
+    
+    func getSettingsRefreshInterval() throws  -> UInt64
     
     func getWatchedPorts()  -> [RustWatchedPort]
     
     func hasPendingNotifications()  -> Bool
     
+    func hasPortForwardNotifications()  -> Bool
+    
     func isFavorite(port: UInt16)  -> Bool
+    
+    func isKubectlAvailable()  -> Bool
     
     func isPortActive(port: UInt16)  -> Bool
     
     func isProcessRunning(pid: UInt32)  -> Bool
+    
+    func isSocatAvailable()  -> Bool
     
     func isWatched(port: UInt16)  -> Bool
     
@@ -524,17 +564,37 @@ public protocol RustEngineProtocol : AnyObject {
     
     func killProcess(pid: UInt32, force: Bool) throws  -> Bool
     
+    func monitorPortForwards() 
+    
     func refresh() throws 
     
     func reloadConfig() throws 
     
     func removeFavorite(port: UInt16) throws 
     
+    func removePortForwardConnection(id: String) throws 
+    
     func removeWatchedPort(port: UInt16) throws 
+    
+    func restartPortForward(id: String) throws 
+    
+    func setSettingsPortForwardAutoStart(enabled: Bool) throws 
+    
+    func setSettingsPortForwardShowNotifications(enabled: Bool) throws 
+    
+    func setSettingsRefreshInterval(interval: UInt64) throws 
+    
+    func startPortForward(id: String) throws 
+    
+    func stopAllPortForwards() throws 
+    
+    func stopPortForward(id: String) throws 
     
     func toggleFavorite(port: UInt16) throws  -> Bool
     
     func toggleWatch(port: UInt16) throws  -> Bool
+    
+    func updatePortForwardConnection(config: RustPortForwardConfig) throws 
     
     func updateWatchedPort(port: UInt16, notifyOnStart: Bool, notifyOnStop: Bool) throws 
     
@@ -604,12 +664,34 @@ open func addFavorite(port: UInt16)throws  {try rustCallWithError(FfiConverterTy
 }
 }
     
+open func addPortForwardConnection(config: RustPortForwardConfig)throws  {try rustCallWithError(FfiConverterTypeRustEngineError.lift) {
+    uniffi_portkiller_ffi_fn_method_rustengine_add_port_forward_connection(self.uniffiClonePointer(),
+        FfiConverterTypeRustPortForwardConfig.lower(config),$0
+    )
+}
+}
+    
 open func addWatchedPort(port: UInt16, notifyOnStart: Bool, notifyOnStop: Bool)throws  -> RustWatchedPort {
     return try  FfiConverterTypeRustWatchedPort.lift(try rustCallWithError(FfiConverterTypeRustEngineError.lift) {
     uniffi_portkiller_ffi_fn_method_rustengine_add_watched_port(self.uniffiClonePointer(),
         FfiConverterUInt16.lower(port),
         FfiConverterBool.lower(notifyOnStart),
         FfiConverterBool.lower(notifyOnStop),$0
+    )
+})
+}
+    
+open func fetchNamespaces()throws  -> [RustKubernetesNamespace] {
+    return try  FfiConverterSequenceTypeRustKubernetesNamespace.lift(try rustCallWithError(FfiConverterTypeRustEngineError.lift) {
+    uniffi_portkiller_ffi_fn_method_rustengine_fetch_namespaces(self.uniffiClonePointer(),$0
+    )
+})
+}
+    
+open func fetchServices(namespace: String)throws  -> [RustKubernetesService] {
+    return try  FfiConverterSequenceTypeRustKubernetesService.lift(try rustCallWithError(FfiConverterTypeRustEngineError.lift) {
+    uniffi_portkiller_ffi_fn_method_rustengine_fetch_services(self.uniffiClonePointer(),
+        FfiConverterString.lower(namespace),$0
     )
 })
 }
@@ -628,9 +710,51 @@ open func getPendingNotifications() -> [RustNotification] {
 })
 }
     
+open func getPortForwardConnections() -> [RustPortForwardConfig] {
+    return try!  FfiConverterSequenceTypeRustPortForwardConfig.lift(try! rustCall() {
+    uniffi_portkiller_ffi_fn_method_rustengine_get_port_forward_connections(self.uniffiClonePointer(),$0
+    )
+})
+}
+    
+open func getPortForwardNotifications() -> [RustPortForwardNotification] {
+    return try!  FfiConverterSequenceTypeRustPortForwardNotification.lift(try! rustCall() {
+    uniffi_portkiller_ffi_fn_method_rustengine_get_port_forward_notifications(self.uniffiClonePointer(),$0
+    )
+})
+}
+    
+open func getPortForwardStates() -> [RustPortForwardState] {
+    return try!  FfiConverterSequenceTypeRustPortForwardState.lift(try! rustCall() {
+    uniffi_portkiller_ffi_fn_method_rustengine_get_port_forward_states(self.uniffiClonePointer(),$0
+    )
+})
+}
+    
 open func getPorts() -> [RustPortInfo] {
     return try!  FfiConverterSequenceTypeRustPortInfo.lift(try! rustCall() {
     uniffi_portkiller_ffi_fn_method_rustengine_get_ports(self.uniffiClonePointer(),$0
+    )
+})
+}
+    
+open func getSettingsPortForwardAutoStart()throws  -> Bool {
+    return try  FfiConverterBool.lift(try rustCallWithError(FfiConverterTypeRustEngineError.lift) {
+    uniffi_portkiller_ffi_fn_method_rustengine_get_settings_port_forward_auto_start(self.uniffiClonePointer(),$0
+    )
+})
+}
+    
+open func getSettingsPortForwardShowNotifications()throws  -> Bool {
+    return try  FfiConverterBool.lift(try rustCallWithError(FfiConverterTypeRustEngineError.lift) {
+    uniffi_portkiller_ffi_fn_method_rustengine_get_settings_port_forward_show_notifications(self.uniffiClonePointer(),$0
+    )
+})
+}
+    
+open func getSettingsRefreshInterval()throws  -> UInt64 {
+    return try  FfiConverterUInt64.lift(try rustCallWithError(FfiConverterTypeRustEngineError.lift) {
+    uniffi_portkiller_ffi_fn_method_rustengine_get_settings_refresh_interval(self.uniffiClonePointer(),$0
     )
 })
 }
@@ -649,10 +773,24 @@ open func hasPendingNotifications() -> Bool {
 })
 }
     
+open func hasPortForwardNotifications() -> Bool {
+    return try!  FfiConverterBool.lift(try! rustCall() {
+    uniffi_portkiller_ffi_fn_method_rustengine_has_port_forward_notifications(self.uniffiClonePointer(),$0
+    )
+})
+}
+    
 open func isFavorite(port: UInt16) -> Bool {
     return try!  FfiConverterBool.lift(try! rustCall() {
     uniffi_portkiller_ffi_fn_method_rustengine_is_favorite(self.uniffiClonePointer(),
         FfiConverterUInt16.lower(port),$0
+    )
+})
+}
+    
+open func isKubectlAvailable() -> Bool {
+    return try!  FfiConverterBool.lift(try! rustCall() {
+    uniffi_portkiller_ffi_fn_method_rustengine_is_kubectl_available(self.uniffiClonePointer(),$0
     )
 })
 }
@@ -669,6 +807,13 @@ open func isProcessRunning(pid: UInt32) -> Bool {
     return try!  FfiConverterBool.lift(try! rustCall() {
     uniffi_portkiller_ffi_fn_method_rustengine_is_process_running(self.uniffiClonePointer(),
         FfiConverterUInt32.lower(pid),$0
+    )
+})
+}
+    
+open func isSocatAvailable() -> Bool {
+    return try!  FfiConverterBool.lift(try! rustCall() {
+    uniffi_portkiller_ffi_fn_method_rustengine_is_socat_available(self.uniffiClonePointer(),$0
     )
 })
 }
@@ -698,6 +843,12 @@ open func killProcess(pid: UInt32, force: Bool)throws  -> Bool {
 })
 }
     
+open func monitorPortForwards() {try! rustCall() {
+    uniffi_portkiller_ffi_fn_method_rustengine_monitor_port_forwards(self.uniffiClonePointer(),$0
+    )
+}
+}
+    
 open func refresh()throws  {try rustCallWithError(FfiConverterTypeRustEngineError.lift) {
     uniffi_portkiller_ffi_fn_method_rustengine_refresh(self.uniffiClonePointer(),$0
     )
@@ -717,9 +868,64 @@ open func removeFavorite(port: UInt16)throws  {try rustCallWithError(FfiConverte
 }
 }
     
+open func removePortForwardConnection(id: String)throws  {try rustCallWithError(FfiConverterTypeRustEngineError.lift) {
+    uniffi_portkiller_ffi_fn_method_rustengine_remove_port_forward_connection(self.uniffiClonePointer(),
+        FfiConverterString.lower(id),$0
+    )
+}
+}
+    
 open func removeWatchedPort(port: UInt16)throws  {try rustCallWithError(FfiConverterTypeRustEngineError.lift) {
     uniffi_portkiller_ffi_fn_method_rustengine_remove_watched_port(self.uniffiClonePointer(),
         FfiConverterUInt16.lower(port),$0
+    )
+}
+}
+    
+open func restartPortForward(id: String)throws  {try rustCallWithError(FfiConverterTypeRustEngineError.lift) {
+    uniffi_portkiller_ffi_fn_method_rustengine_restart_port_forward(self.uniffiClonePointer(),
+        FfiConverterString.lower(id),$0
+    )
+}
+}
+    
+open func setSettingsPortForwardAutoStart(enabled: Bool)throws  {try rustCallWithError(FfiConverterTypeRustEngineError.lift) {
+    uniffi_portkiller_ffi_fn_method_rustengine_set_settings_port_forward_auto_start(self.uniffiClonePointer(),
+        FfiConverterBool.lower(enabled),$0
+    )
+}
+}
+    
+open func setSettingsPortForwardShowNotifications(enabled: Bool)throws  {try rustCallWithError(FfiConverterTypeRustEngineError.lift) {
+    uniffi_portkiller_ffi_fn_method_rustengine_set_settings_port_forward_show_notifications(self.uniffiClonePointer(),
+        FfiConverterBool.lower(enabled),$0
+    )
+}
+}
+    
+open func setSettingsRefreshInterval(interval: UInt64)throws  {try rustCallWithError(FfiConverterTypeRustEngineError.lift) {
+    uniffi_portkiller_ffi_fn_method_rustengine_set_settings_refresh_interval(self.uniffiClonePointer(),
+        FfiConverterUInt64.lower(interval),$0
+    )
+}
+}
+    
+open func startPortForward(id: String)throws  {try rustCallWithError(FfiConverterTypeRustEngineError.lift) {
+    uniffi_portkiller_ffi_fn_method_rustengine_start_port_forward(self.uniffiClonePointer(),
+        FfiConverterString.lower(id),$0
+    )
+}
+}
+    
+open func stopAllPortForwards()throws  {try rustCallWithError(FfiConverterTypeRustEngineError.lift) {
+    uniffi_portkiller_ffi_fn_method_rustengine_stop_all_port_forwards(self.uniffiClonePointer(),$0
+    )
+}
+}
+    
+open func stopPortForward(id: String)throws  {try rustCallWithError(FfiConverterTypeRustEngineError.lift) {
+    uniffi_portkiller_ffi_fn_method_rustengine_stop_port_forward(self.uniffiClonePointer(),
+        FfiConverterString.lower(id),$0
     )
 }
 }
@@ -738,6 +944,13 @@ open func toggleWatch(port: UInt16)throws  -> Bool {
         FfiConverterUInt16.lower(port),$0
     )
 })
+}
+    
+open func updatePortForwardConnection(config: RustPortForwardConfig)throws  {try rustCallWithError(FfiConverterTypeRustEngineError.lift) {
+    uniffi_portkiller_ffi_fn_method_rustengine_update_port_forward_connection(self.uniffiClonePointer(),
+        FfiConverterTypeRustPortForwardConfig.lower(config),$0
+    )
+}
 }
     
 open func updateWatchedPort(port: UInt16, notifyOnStart: Bool, notifyOnStop: Bool)throws  {try rustCallWithError(FfiConverterTypeRustEngineError.lift) {
@@ -801,6 +1014,154 @@ public func FfiConverterTypeRustEngine_lift(_ pointer: UnsafeMutableRawPointer) 
 #endif
 public func FfiConverterTypeRustEngine_lower(_ value: RustEngine) -> UnsafeMutableRawPointer {
     return FfiConverterTypeRustEngine.lower(value)
+}
+
+
+public struct RustKubernetesNamespace {
+    public var name: String
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(name: String) {
+        self.name = name
+    }
+}
+
+
+
+extension RustKubernetesNamespace: Equatable, Hashable {
+    public static func ==(lhs: RustKubernetesNamespace, rhs: RustKubernetesNamespace) -> Bool {
+        if lhs.name != rhs.name {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(name)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeRustKubernetesNamespace: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> RustKubernetesNamespace {
+        return
+            try RustKubernetesNamespace(
+                name: FfiConverterString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: RustKubernetesNamespace, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.name, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeRustKubernetesNamespace_lift(_ buf: RustBuffer) throws -> RustKubernetesNamespace {
+    return try FfiConverterTypeRustKubernetesNamespace.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeRustKubernetesNamespace_lower(_ value: RustKubernetesNamespace) -> RustBuffer {
+    return FfiConverterTypeRustKubernetesNamespace.lower(value)
+}
+
+
+public struct RustKubernetesService {
+    public var name: String
+    public var namespace: String
+    public var serviceType: String
+    public var clusterIp: String?
+    public var ports: [RustServicePort]
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(name: String, namespace: String, serviceType: String, clusterIp: String?, ports: [RustServicePort]) {
+        self.name = name
+        self.namespace = namespace
+        self.serviceType = serviceType
+        self.clusterIp = clusterIp
+        self.ports = ports
+    }
+}
+
+
+
+extension RustKubernetesService: Equatable, Hashable {
+    public static func ==(lhs: RustKubernetesService, rhs: RustKubernetesService) -> Bool {
+        if lhs.name != rhs.name {
+            return false
+        }
+        if lhs.namespace != rhs.namespace {
+            return false
+        }
+        if lhs.serviceType != rhs.serviceType {
+            return false
+        }
+        if lhs.clusterIp != rhs.clusterIp {
+            return false
+        }
+        if lhs.ports != rhs.ports {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(name)
+        hasher.combine(namespace)
+        hasher.combine(serviceType)
+        hasher.combine(clusterIp)
+        hasher.combine(ports)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeRustKubernetesService: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> RustKubernetesService {
+        return
+            try RustKubernetesService(
+                name: FfiConverterString.read(from: &buf), 
+                namespace: FfiConverterString.read(from: &buf), 
+                serviceType: FfiConverterString.read(from: &buf), 
+                clusterIp: FfiConverterOptionString.read(from: &buf), 
+                ports: FfiConverterSequenceTypeRustServicePort.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: RustKubernetesService, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.name, into: &buf)
+        FfiConverterString.write(value.namespace, into: &buf)
+        FfiConverterString.write(value.serviceType, into: &buf)
+        FfiConverterOptionString.write(value.clusterIp, into: &buf)
+        FfiConverterSequenceTypeRustServicePort.write(value.ports, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeRustKubernetesService_lift(_ buf: RustBuffer) throws -> RustKubernetesService {
+    return try FfiConverterTypeRustKubernetesService.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeRustKubernetesService_lower(_ value: RustKubernetesService) -> RustBuffer {
+    return FfiConverterTypeRustKubernetesService.lower(value)
 }
 
 
@@ -875,6 +1236,316 @@ public func FfiConverterTypeRustNotification_lift(_ buf: RustBuffer) throws -> R
 #endif
 public func FfiConverterTypeRustNotification_lower(_ value: RustNotification) -> RustBuffer {
     return FfiConverterTypeRustNotification.lower(value)
+}
+
+
+public struct RustPortForwardConfig {
+    public var id: String
+    public var name: String
+    public var namespace: String
+    public var service: String
+    public var localPort: UInt16
+    public var remotePort: UInt16
+    public var proxyPort: UInt16?
+    public var isEnabled: Bool
+    public var autoReconnect: Bool
+    public var useDirectExec: Bool
+    public var notifyOnConnect: Bool
+    public var notifyOnDisconnect: Bool
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(id: String, name: String, namespace: String, service: String, localPort: UInt16, remotePort: UInt16, proxyPort: UInt16?, isEnabled: Bool, autoReconnect: Bool, useDirectExec: Bool, notifyOnConnect: Bool, notifyOnDisconnect: Bool) {
+        self.id = id
+        self.name = name
+        self.namespace = namespace
+        self.service = service
+        self.localPort = localPort
+        self.remotePort = remotePort
+        self.proxyPort = proxyPort
+        self.isEnabled = isEnabled
+        self.autoReconnect = autoReconnect
+        self.useDirectExec = useDirectExec
+        self.notifyOnConnect = notifyOnConnect
+        self.notifyOnDisconnect = notifyOnDisconnect
+    }
+}
+
+
+
+extension RustPortForwardConfig: Equatable, Hashable {
+    public static func ==(lhs: RustPortForwardConfig, rhs: RustPortForwardConfig) -> Bool {
+        if lhs.id != rhs.id {
+            return false
+        }
+        if lhs.name != rhs.name {
+            return false
+        }
+        if lhs.namespace != rhs.namespace {
+            return false
+        }
+        if lhs.service != rhs.service {
+            return false
+        }
+        if lhs.localPort != rhs.localPort {
+            return false
+        }
+        if lhs.remotePort != rhs.remotePort {
+            return false
+        }
+        if lhs.proxyPort != rhs.proxyPort {
+            return false
+        }
+        if lhs.isEnabled != rhs.isEnabled {
+            return false
+        }
+        if lhs.autoReconnect != rhs.autoReconnect {
+            return false
+        }
+        if lhs.useDirectExec != rhs.useDirectExec {
+            return false
+        }
+        if lhs.notifyOnConnect != rhs.notifyOnConnect {
+            return false
+        }
+        if lhs.notifyOnDisconnect != rhs.notifyOnDisconnect {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+        hasher.combine(name)
+        hasher.combine(namespace)
+        hasher.combine(service)
+        hasher.combine(localPort)
+        hasher.combine(remotePort)
+        hasher.combine(proxyPort)
+        hasher.combine(isEnabled)
+        hasher.combine(autoReconnect)
+        hasher.combine(useDirectExec)
+        hasher.combine(notifyOnConnect)
+        hasher.combine(notifyOnDisconnect)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeRustPortForwardConfig: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> RustPortForwardConfig {
+        return
+            try RustPortForwardConfig(
+                id: FfiConverterString.read(from: &buf), 
+                name: FfiConverterString.read(from: &buf), 
+                namespace: FfiConverterString.read(from: &buf), 
+                service: FfiConverterString.read(from: &buf), 
+                localPort: FfiConverterUInt16.read(from: &buf), 
+                remotePort: FfiConverterUInt16.read(from: &buf), 
+                proxyPort: FfiConverterOptionUInt16.read(from: &buf), 
+                isEnabled: FfiConverterBool.read(from: &buf), 
+                autoReconnect: FfiConverterBool.read(from: &buf), 
+                useDirectExec: FfiConverterBool.read(from: &buf), 
+                notifyOnConnect: FfiConverterBool.read(from: &buf), 
+                notifyOnDisconnect: FfiConverterBool.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: RustPortForwardConfig, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.id, into: &buf)
+        FfiConverterString.write(value.name, into: &buf)
+        FfiConverterString.write(value.namespace, into: &buf)
+        FfiConverterString.write(value.service, into: &buf)
+        FfiConverterUInt16.write(value.localPort, into: &buf)
+        FfiConverterUInt16.write(value.remotePort, into: &buf)
+        FfiConverterOptionUInt16.write(value.proxyPort, into: &buf)
+        FfiConverterBool.write(value.isEnabled, into: &buf)
+        FfiConverterBool.write(value.autoReconnect, into: &buf)
+        FfiConverterBool.write(value.useDirectExec, into: &buf)
+        FfiConverterBool.write(value.notifyOnConnect, into: &buf)
+        FfiConverterBool.write(value.notifyOnDisconnect, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeRustPortForwardConfig_lift(_ buf: RustBuffer) throws -> RustPortForwardConfig {
+    return try FfiConverterTypeRustPortForwardConfig.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeRustPortForwardConfig_lower(_ value: RustPortForwardConfig) -> RustBuffer {
+    return FfiConverterTypeRustPortForwardConfig.lower(value)
+}
+
+
+public struct RustPortForwardNotification {
+    public var notificationType: String
+    public var connectionId: String
+    public var connectionName: String
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(notificationType: String, connectionId: String, connectionName: String) {
+        self.notificationType = notificationType
+        self.connectionId = connectionId
+        self.connectionName = connectionName
+    }
+}
+
+
+
+extension RustPortForwardNotification: Equatable, Hashable {
+    public static func ==(lhs: RustPortForwardNotification, rhs: RustPortForwardNotification) -> Bool {
+        if lhs.notificationType != rhs.notificationType {
+            return false
+        }
+        if lhs.connectionId != rhs.connectionId {
+            return false
+        }
+        if lhs.connectionName != rhs.connectionName {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(notificationType)
+        hasher.combine(connectionId)
+        hasher.combine(connectionName)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeRustPortForwardNotification: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> RustPortForwardNotification {
+        return
+            try RustPortForwardNotification(
+                notificationType: FfiConverterString.read(from: &buf), 
+                connectionId: FfiConverterString.read(from: &buf), 
+                connectionName: FfiConverterString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: RustPortForwardNotification, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.notificationType, into: &buf)
+        FfiConverterString.write(value.connectionId, into: &buf)
+        FfiConverterString.write(value.connectionName, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeRustPortForwardNotification_lift(_ buf: RustBuffer) throws -> RustPortForwardNotification {
+    return try FfiConverterTypeRustPortForwardNotification.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeRustPortForwardNotification_lower(_ value: RustPortForwardNotification) -> RustBuffer {
+    return FfiConverterTypeRustPortForwardNotification.lower(value)
+}
+
+
+public struct RustPortForwardState {
+    public var id: String
+    public var portForwardStatus: String
+    public var proxyStatus: String
+    public var lastError: String?
+    public var isIntentionallyStopped: Bool
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(id: String, portForwardStatus: String, proxyStatus: String, lastError: String?, isIntentionallyStopped: Bool) {
+        self.id = id
+        self.portForwardStatus = portForwardStatus
+        self.proxyStatus = proxyStatus
+        self.lastError = lastError
+        self.isIntentionallyStopped = isIntentionallyStopped
+    }
+}
+
+
+
+extension RustPortForwardState: Equatable, Hashable {
+    public static func ==(lhs: RustPortForwardState, rhs: RustPortForwardState) -> Bool {
+        if lhs.id != rhs.id {
+            return false
+        }
+        if lhs.portForwardStatus != rhs.portForwardStatus {
+            return false
+        }
+        if lhs.proxyStatus != rhs.proxyStatus {
+            return false
+        }
+        if lhs.lastError != rhs.lastError {
+            return false
+        }
+        if lhs.isIntentionallyStopped != rhs.isIntentionallyStopped {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+        hasher.combine(portForwardStatus)
+        hasher.combine(proxyStatus)
+        hasher.combine(lastError)
+        hasher.combine(isIntentionallyStopped)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeRustPortForwardState: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> RustPortForwardState {
+        return
+            try RustPortForwardState(
+                id: FfiConverterString.read(from: &buf), 
+                portForwardStatus: FfiConverterString.read(from: &buf), 
+                proxyStatus: FfiConverterString.read(from: &buf), 
+                lastError: FfiConverterOptionString.read(from: &buf), 
+                isIntentionallyStopped: FfiConverterBool.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: RustPortForwardState, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.id, into: &buf)
+        FfiConverterString.write(value.portForwardStatus, into: &buf)
+        FfiConverterString.write(value.proxyStatus, into: &buf)
+        FfiConverterOptionString.write(value.lastError, into: &buf)
+        FfiConverterBool.write(value.isIntentionallyStopped, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeRustPortForwardState_lift(_ buf: RustBuffer) throws -> RustPortForwardState {
+    return try FfiConverterTypeRustPortForwardState.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeRustPortForwardState_lower(_ value: RustPortForwardState) -> RustBuffer {
+    return FfiConverterTypeRustPortForwardState.lower(value)
 }
 
 
@@ -1005,6 +1676,88 @@ public func FfiConverterTypeRustPortInfo_lift(_ buf: RustBuffer) throws -> RustP
 #endif
 public func FfiConverterTypeRustPortInfo_lower(_ value: RustPortInfo) -> RustBuffer {
     return FfiConverterTypeRustPortInfo.lower(value)
+}
+
+
+public struct RustServicePort {
+    public var name: String?
+    public var port: UInt16
+    public var targetPort: UInt16
+    public var `protocol`: String?
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(name: String?, port: UInt16, targetPort: UInt16, `protocol`: String?) {
+        self.name = name
+        self.port = port
+        self.targetPort = targetPort
+        self.`protocol` = `protocol`
+    }
+}
+
+
+
+extension RustServicePort: Equatable, Hashable {
+    public static func ==(lhs: RustServicePort, rhs: RustServicePort) -> Bool {
+        if lhs.name != rhs.name {
+            return false
+        }
+        if lhs.port != rhs.port {
+            return false
+        }
+        if lhs.targetPort != rhs.targetPort {
+            return false
+        }
+        if lhs.`protocol` != rhs.`protocol` {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(name)
+        hasher.combine(port)
+        hasher.combine(targetPort)
+        hasher.combine(`protocol`)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeRustServicePort: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> RustServicePort {
+        return
+            try RustServicePort(
+                name: FfiConverterOptionString.read(from: &buf), 
+                port: FfiConverterUInt16.read(from: &buf), 
+                targetPort: FfiConverterUInt16.read(from: &buf), 
+                protocol: FfiConverterOptionString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: RustServicePort, into buf: inout [UInt8]) {
+        FfiConverterOptionString.write(value.name, into: &buf)
+        FfiConverterUInt16.write(value.port, into: &buf)
+        FfiConverterUInt16.write(value.targetPort, into: &buf)
+        FfiConverterOptionString.write(value.`protocol`, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeRustServicePort_lift(_ buf: RustBuffer) throws -> RustServicePort {
+    return try FfiConverterTypeRustServicePort.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeRustServicePort_lower(_ value: RustServicePort) -> RustBuffer {
+    return FfiConverterTypeRustServicePort.lower(value)
 }
 
 
@@ -1171,6 +1924,30 @@ extension RustEngineError: Foundation.LocalizedError {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterOptionUInt16: FfiConverterRustBuffer {
+    typealias SwiftType = UInt16?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterUInt16.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterUInt16.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterOptionString: FfiConverterRustBuffer {
     typealias SwiftType = String?
 
@@ -1220,6 +1997,56 @@ fileprivate struct FfiConverterSequenceUInt16: FfiConverterRustBuffer {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterSequenceTypeRustKubernetesNamespace: FfiConverterRustBuffer {
+    typealias SwiftType = [RustKubernetesNamespace]
+
+    public static func write(_ value: [RustKubernetesNamespace], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeRustKubernetesNamespace.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [RustKubernetesNamespace] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [RustKubernetesNamespace]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeRustKubernetesNamespace.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterSequenceTypeRustKubernetesService: FfiConverterRustBuffer {
+    typealias SwiftType = [RustKubernetesService]
+
+    public static func write(_ value: [RustKubernetesService], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeRustKubernetesService.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [RustKubernetesService] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [RustKubernetesService]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeRustKubernetesService.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterSequenceTypeRustNotification: FfiConverterRustBuffer {
     typealias SwiftType = [RustNotification]
 
@@ -1245,6 +2072,81 @@ fileprivate struct FfiConverterSequenceTypeRustNotification: FfiConverterRustBuf
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterSequenceTypeRustPortForwardConfig: FfiConverterRustBuffer {
+    typealias SwiftType = [RustPortForwardConfig]
+
+    public static func write(_ value: [RustPortForwardConfig], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeRustPortForwardConfig.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [RustPortForwardConfig] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [RustPortForwardConfig]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeRustPortForwardConfig.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterSequenceTypeRustPortForwardNotification: FfiConverterRustBuffer {
+    typealias SwiftType = [RustPortForwardNotification]
+
+    public static func write(_ value: [RustPortForwardNotification], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeRustPortForwardNotification.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [RustPortForwardNotification] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [RustPortForwardNotification]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeRustPortForwardNotification.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterSequenceTypeRustPortForwardState: FfiConverterRustBuffer {
+    typealias SwiftType = [RustPortForwardState]
+
+    public static func write(_ value: [RustPortForwardState], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeRustPortForwardState.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [RustPortForwardState] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [RustPortForwardState]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeRustPortForwardState.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterSequenceTypeRustPortInfo: FfiConverterRustBuffer {
     typealias SwiftType = [RustPortInfo]
 
@@ -1262,6 +2164,31 @@ fileprivate struct FfiConverterSequenceTypeRustPortInfo: FfiConverterRustBuffer 
         seq.reserveCapacity(Int(len))
         for _ in 0 ..< len {
             seq.append(try FfiConverterTypeRustPortInfo.read(from: &buf))
+        }
+        return seq
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterSequenceTypeRustServicePort: FfiConverterRustBuffer {
+    typealias SwiftType = [RustServicePort]
+
+    public static func write(_ value: [RustServicePort], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeRustServicePort.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [RustServicePort] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [RustServicePort]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeRustServicePort.read(from: &buf))
         }
         return seq
     }
@@ -1310,7 +2237,16 @@ nonisolated(unsafe) private var initializationResult: InitializationResult = {
     if (uniffi_portkiller_ffi_checksum_method_rustengine_add_favorite() != 12088) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_portkiller_ffi_checksum_method_rustengine_add_port_forward_connection() != 4426) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_portkiller_ffi_checksum_method_rustengine_add_watched_port() != 62351) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_portkiller_ffi_checksum_method_rustengine_fetch_namespaces() != 46364) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_portkiller_ffi_checksum_method_rustengine_fetch_services() != 31675) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_portkiller_ffi_checksum_method_rustengine_get_favorites() != 39295) {
@@ -1319,7 +2255,25 @@ nonisolated(unsafe) private var initializationResult: InitializationResult = {
     if (uniffi_portkiller_ffi_checksum_method_rustengine_get_pending_notifications() != 35984) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_portkiller_ffi_checksum_method_rustengine_get_port_forward_connections() != 38785) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_portkiller_ffi_checksum_method_rustengine_get_port_forward_notifications() != 49758) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_portkiller_ffi_checksum_method_rustengine_get_port_forward_states() != 20424) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_portkiller_ffi_checksum_method_rustengine_get_ports() != 57191) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_portkiller_ffi_checksum_method_rustengine_get_settings_port_forward_auto_start() != 41741) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_portkiller_ffi_checksum_method_rustengine_get_settings_port_forward_show_notifications() != 21141) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_portkiller_ffi_checksum_method_rustengine_get_settings_refresh_interval() != 34452) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_portkiller_ffi_checksum_method_rustengine_get_watched_ports() != 21591) {
@@ -1328,13 +2282,22 @@ nonisolated(unsafe) private var initializationResult: InitializationResult = {
     if (uniffi_portkiller_ffi_checksum_method_rustengine_has_pending_notifications() != 40219) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_portkiller_ffi_checksum_method_rustengine_has_port_forward_notifications() != 63939) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_portkiller_ffi_checksum_method_rustengine_is_favorite() != 42718) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_portkiller_ffi_checksum_method_rustengine_is_kubectl_available() != 26916) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_portkiller_ffi_checksum_method_rustengine_is_port_active() != 1835) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_portkiller_ffi_checksum_method_rustengine_is_process_running() != 24331) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_portkiller_ffi_checksum_method_rustengine_is_socat_available() != 32777) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_portkiller_ffi_checksum_method_rustengine_is_watched() != 27199) {
@@ -1346,6 +2309,9 @@ nonisolated(unsafe) private var initializationResult: InitializationResult = {
     if (uniffi_portkiller_ffi_checksum_method_rustengine_kill_process() != 40992) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_portkiller_ffi_checksum_method_rustengine_monitor_port_forwards() != 13825) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_portkiller_ffi_checksum_method_rustengine_refresh() != 62873) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -1355,13 +2321,40 @@ nonisolated(unsafe) private var initializationResult: InitializationResult = {
     if (uniffi_portkiller_ffi_checksum_method_rustengine_remove_favorite() != 61235) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_portkiller_ffi_checksum_method_rustengine_remove_port_forward_connection() != 14231) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_portkiller_ffi_checksum_method_rustengine_remove_watched_port() != 20679) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_portkiller_ffi_checksum_method_rustengine_restart_port_forward() != 20052) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_portkiller_ffi_checksum_method_rustengine_set_settings_port_forward_auto_start() != 2809) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_portkiller_ffi_checksum_method_rustengine_set_settings_port_forward_show_notifications() != 49172) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_portkiller_ffi_checksum_method_rustengine_set_settings_refresh_interval() != 13503) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_portkiller_ffi_checksum_method_rustengine_start_port_forward() != 9966) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_portkiller_ffi_checksum_method_rustengine_stop_all_port_forwards() != 44296) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_portkiller_ffi_checksum_method_rustengine_stop_port_forward() != 52549) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_portkiller_ffi_checksum_method_rustengine_toggle_favorite() != 24554) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_portkiller_ffi_checksum_method_rustengine_toggle_watch() != 61784) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_portkiller_ffi_checksum_method_rustengine_update_port_forward_connection() != 59659) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_portkiller_ffi_checksum_method_rustengine_update_watched_port() != 61189) {

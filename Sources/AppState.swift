@@ -7,12 +7,16 @@ import Sparkle
 // MARK: - Defaults Keys
 
 extension Defaults.Keys {
-    // Note: favorites and watchedPorts are now stored in Rust config (~/.portkiller/config.json)
-    // This enables sharing between the macOS app and CLI
+    // NOTE: Most settings are now stored in Rust config (~/.portkiller/config.json)
+    // Including: favorites, watchedPorts, refreshInterval, portForwardAutoStart, portForwardShowNotifications
+    // Only UI-specific settings remain in Defaults:
     static let useTreeView = Key<Bool>("useTreeView", default: false)
-    static let refreshInterval = Key<Int>("refreshInterval", default: 5)
 
-    // Sponsor-related keys
+    // Custom paths for kubectl/socat (UI-only, not shared with CLI)
+    static let customKubectlPath = Key<String?>("customKubectlPath", default: nil)
+    static let customSocatPath = Key<String?>("customSocatPath", default: nil)
+
+    // Sponsor-related keys (UI-only, not shared with CLI)
     static let sponsorCache = Key<SponsorCache?>("sponsorCache", default: nil)
     static let lastSponsorWindowShown = Key<Date?>("lastSponsorWindowShown", default: nil)
     static let sponsorDisplayInterval = Key<SponsorDisplayInterval>("sponsorDisplayInterval", default: .bimonthly)
@@ -131,8 +135,11 @@ final class AppState {
     /// Manages Sparkle auto-update functionality
     let updateManager = UpdateManager()
 
-    /// Manages Kubernetes port-forward connections
-    let portForwardManager = PortForwardManager()
+    /// Manages Kubernetes port-forward connections (uses Rust backend)
+    let portForwardManager: PortForwardManager
+
+    /// Manages Kubernetes discovery (uses Rust backend)
+    let kubernetesDiscoveryManager: KubernetesDiscoveryManager
 
     /// Manages Cloudflare tunnel connections
     let tunnelManager = TunnelManager()
@@ -155,8 +162,20 @@ final class AppState {
             fatalError("Failed to initialize Rust engine: \(error)")
         }
 
+        // Initialize managers with Rust scanner
+        portForwardManager = PortForwardManager(scanner: scanner)
+        kubernetesDiscoveryManager = KubernetesDiscoveryManager(scanner: scanner)
+
         setupKeyboardShortcuts()
         startAutoRefresh()
+
+        // Auto-start port-forward connections if enabled (setting from Rust config)
+        if scanner.getSettingsPortForwardAutoStart() {
+            Task { @MainActor in
+                try? await Task.sleep(for: .seconds(2))
+                portForwardManager.startAll()
+            }
+        }
     }
 
     // MARK: - Auto Refresh
@@ -168,12 +187,11 @@ final class AppState {
         // Initial refresh
         refresh()
 
-        // Schedule periodic refresh
-        let interval = TimeInterval(Defaults[.refreshInterval])
+        // Schedule periodic refresh (avoid Task wrapper to reduce memory)
+        // Refresh interval is stored in Rust config
+        let interval = TimeInterval(scanner.getSettingsRefreshInterval())
         refreshTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
-            Task { @MainActor in
-                self?.refresh()
-            }
+            self?.refresh()
         }
     }
 
@@ -183,14 +201,20 @@ final class AppState {
         refreshTimer = nil
     }
 
+    /// Current refresh task (to prevent accumulation)
+    @ObservationIgnored private var currentRefreshTask: Task<Void, Never>?
+
     /// Perform a single refresh cycle.
     /// Runs the heavy Rust scanning on a background thread to avoid blocking the main thread.
     func refresh() {
         guard !isScanning else { return }
         isScanning = true
 
+        // Cancel any previous task to prevent accumulation
+        currentRefreshTask?.cancel()
+
         // Run Rust scanning on background thread to avoid blocking main thread
-        Task.detached(priority: .userInitiated) { [scanner] in
+        currentRefreshTask = Task.detached(priority: .userInitiated) { [scanner] in
             do {
                 // Tell Rust to scan ports (this blocks but on background thread)
                 try scanner.refresh()
