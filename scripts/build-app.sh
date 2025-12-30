@@ -141,9 +141,9 @@ ls -la "$BUILD_DIR/" | grep -E "\.bundle$|^total" || echo "  (no bundles found)"
 # Generate icons from AppIcon.icon using actool (Xcode 26+)
 if [ -d "Resources/AppIcon.icon" ]; then
     echo "🎨 Compiling AppIcon.icon with actool..."
-    
+
     # Use actool to compile .icon folder - generates both Assets.car and fallback .icns
-    # Wrap in conditional to handle CI crashes (common with Xcode 16+ on GHA)
+    # Wrap in conditional to handle CI crashes (common with Xcode 26+ on some GHA runners)
     if xcrun actool "Resources/AppIcon.icon" \
         --compile "$RESOURCES_DIR" \
         --app-icon AppIcon \
@@ -151,16 +151,17 @@ if [ -d "Resources/AppIcon.icon" ]; then
         --platform macosx \
         --minimum-deployment-target 15.0 \
         --include-all-app-icons \
-        --output-partial-info-plist /tmp/icon-info.plist; then
+        --output-partial-info-plist /tmp/icon-info.plist 2>/dev/null; then
         echo "  ✅ Generated AppIcon.icns and Assets.car"
     else
         echo "  ⚠️ Warning: actool failed (likely CI/Environment issue)."
-        # Fail hard only if this is a Release workflow where the icon is mandatory
-        if [ "$GITHUB_WORKFLOW" = "Release" ]; then
-            echo "  ❌ Error: AppIcon generation is required for Release."
-            exit 1
+        # Fallback: use pre-generated static .icns file
+        if [ -f "Resources/AppIcon.icns" ]; then
+            echo "  → Using static AppIcon.icns as fallback"
+            cp "Resources/AppIcon.icns" "$RESOURCES_DIR/"
         else
-            echo "  ➡️ Continuing build without AppIcon (acceptable for CI/Debug)..."
+            echo "  ❌ Error: No AppIcon.icns fallback available."
+            exit 1
         fi
     fi
 elif [ -f "Resources/AppIcon.icns" ]; then
