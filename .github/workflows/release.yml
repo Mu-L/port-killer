@@ -4,14 +4,31 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run (skip upload to release)'
+        required: false
+        default: 'false'
+        type: boolean
+      version:
+        description: 'Version to test (e.g., v3.2.0-test)'
+        required: false
+        default: 'v0.0.0-test'
+        type: string
 
 permissions:
   contents: write
+
+env:
+  # Use input version for workflow_dispatch, otherwise use tag
+  RELEASE_VERSION: ${{ inputs.version || github.ref_name }}
 
 jobs:
   create-release:
     name: Create Release
     runs-on: ubuntu-latest
+    if: ${{ !inputs.dry_run }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -31,6 +48,7 @@ jobs:
   build-macos:
     name: Build macOS
     needs: create-release
+    if: ${{ always() && (needs.create-release.result == 'success' || needs.create-release.result == 'skipped') }}
     runs-on: macos-latest
 
     steps:
@@ -65,7 +83,7 @@ jobs:
 
       - name: Update version in Info.plist
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"  # Remove 'v' prefix (v1.2.4 -> 1.2.4)
+          VERSION="${RELEASE_VERSION#v}"  # Remove 'v' prefix (v1.2.4 -> 1.2.4)
           BUILD_NUMBER=$(git rev-list --count HEAD)
 
           # Update CFBundleShortVersionString
@@ -156,7 +174,7 @@ jobs:
       - name: Create DMG
         run: |
           APP_NAME="PortKiller"
-          VERSION="${GITHUB_REF_NAME}"
+          VERSION="${RELEASE_VERSION}"
           DMG_NAME="${APP_NAME}-${VERSION}-macos.dmg"
 
           # Create temporary directory for DMG contents
@@ -222,19 +240,30 @@ jobs:
           rm /tmp/sparkle_private_key
 
       - name: Upload DMG to Release
+        if: ${{ !inputs.dry_run }}
         run: |
-          gh release upload ${{ github.ref_name }} "$DMG_NAME" --clobber
+          gh release upload ${{ env.RELEASE_VERSION }} "$DMG_NAME" --clobber
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-
+      - name: Dry run summary
+        if: ${{ inputs.dry_run }}
+        run: |
+          echo "🧪 DRY RUN - Build completed successfully!"
+          echo "📦 DMG created: $DMG_NAME"
+          echo "📏 DMG size: $(stat -f%z "$DMG_NAME") bytes"
+          echo "🔏 Sparkle signature: $SPARKLE_SIGNATURE"
+          echo ""
+          echo "In a real release, this DMG would be uploaded to:"
+          echo "  https://github.com/productdevbook/port-killer/releases/download/${RELEASE_VERSION}/${DMG_NAME}"
 
       - name: Update appcast.xml
+        if: ${{ !inputs.dry_run }}
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"  # Remove 'v' prefix (v1.2.7 -> 1.2.7)
+          VERSION="${RELEASE_VERSION#v}"  # Remove 'v' prefix (v1.2.7 -> 1.2.7)
           BUILD_NUMBER=$(git rev-list --count HEAD)  # Same as CFBundleVersion in app
           DMG_SIZE=$(stat -f%z "$DMG_NAME")
-          DMG_URL="https://github.com/productdevbook/port-killer/releases/download/${GITHUB_REF_NAME}/${DMG_NAME}"
+          DMG_URL="https://github.com/productdevbook/port-killer/releases/download/${RELEASE_VERSION}/${DMG_NAME}"
 
           echo "Version: $VERSION, Build: $BUILD_NUMBER"
 
@@ -272,19 +301,21 @@ jobs:
           sed -i '' "s|SIGPLACEHOLDER|${SPARKLE_SIGNATURE}|g" appcast.xml
 
       - name: Commit appcast.xml
+        if: ${{ !inputs.dry_run }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git checkout main
           git add appcast.xml
-          git commit -m "chore: update appcast.xml for ${GITHUB_REF_NAME}" || echo "No changes to commit"
+          git commit -m "chore: update appcast.xml for ${RELEASE_VERSION}" || echo "No changes to commit"
           git push origin main
 
       - name: Update Homebrew Tap
+        if: ${{ !inputs.dry_run }}
         env:
           HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
+          VERSION="${RELEASE_VERSION#v}"
           
           # Get SHA256 of the Universal DMG
           SHA256=$(shasum -a 256 "$DMG_NAME" | cut -d' ' -f1)
@@ -326,6 +357,7 @@ jobs:
   build-windows:
     name: Build Windows
     needs: create-release
+    if: ${{ always() && (needs.create-release.result == 'success' || needs.create-release.result == 'skipped') }}
     runs-on: windows-latest
 
     steps:
@@ -358,7 +390,7 @@ jobs:
 
       - name: Create ZIP archives
         run: |
-          $version = "${{ github.ref_name }}"
+          $version = "${{ env.RELEASE_VERSION }}"
 
           # Create x64 ZIP
           Compress-Archive -Path publish/win-x64/* -DestinationPath "PortKiller-${version}-windows-x64.zip"
@@ -367,9 +399,10 @@ jobs:
           Compress-Archive -Path publish/win-arm64/* -DestinationPath "PortKiller-${version}-windows-arm64.zip"
 
       - name: Upload to Release
+        if: ${{ !inputs.dry_run }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          $version = "${{ github.ref_name }}"
+          $version = "${{ env.RELEASE_VERSION }}"
           gh release upload $version "PortKiller-${version}-windows-x64.zip" --clobber
           gh release upload $version "PortKiller-${version}-windows-arm64.zip" --clobber
