@@ -42,6 +42,7 @@ jobs:
           path: |
             platforms/macos/.build
             ~/Library/Caches/org.swift.swiftpm
+            /tmp/Sparkle-2.8.1
           key: ${{ runner.os }}-spm-${{ hashFiles('platforms/macos/Package.resolved') }}
           restore-keys: |
             ${{ runner.os }}-spm-
@@ -57,9 +58,6 @@ jobs:
           else
             echo "No compiler warnings."
           fi
-
-      - name: Build (Release)
-        run: swift build -c release
 
       - name: Run Tests
         run: swift test --parallel

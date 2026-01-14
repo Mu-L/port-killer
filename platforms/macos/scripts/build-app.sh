@@ -14,9 +14,9 @@ CONTENTS_DIR="$APP_DIR/Contents"
 MACOS_DIR="$CONTENTS_DIR/MacOS"
 RESOURCES_DIR="$CONTENTS_DIR/Resources"
 
-# First build to fetch dependencies
-echo "🔨 Building release binary (fetching dependencies)..."
-swift build -c release --arch arm64 --arch x86_64
+# Fetch dependencies (no need for full build)
+echo "📦 Fetching dependencies..."
+swift package resolve
 
 # Patch the CHECKOUT source files directly (not DerivedSources which gets regenerated)
 # This patches the actual library code before the final build
