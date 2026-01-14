@@ -16,10 +16,15 @@ extension PortForwardProcessManager {
             try lsof.run()
             lsof.waitUntilExit()
 
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            if let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
-               !output.isEmpty {
-                let pids = output.components(separatedBy: .newlines)
+            // Use autoreleasepool to prevent memory accumulation
+            var output: String = ""
+            autoreleasepool {
+                let data = pipe.fileHandleForReading.readDataToEndOfFile()
+                output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            }
+
+            if !output.isEmpty {
+                let pids = output.split(separator: "\n")
                 for pidStr in pids {
                     if let pid = Int32(pidStr.trimmingCharacters(in: .whitespaces)) {
                         kill(pid, SIGTERM)

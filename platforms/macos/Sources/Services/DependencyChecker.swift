@@ -143,8 +143,12 @@ actor DependencyChecker {
             try process.run()
             process.waitUntilExit()
 
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            let output = String(data: data, encoding: .utf8) ?? ""
+            // Use autoreleasepool to prevent memory accumulation
+            var output: String = ""
+            autoreleasepool {
+                let data = pipe.fileHandleForReading.readDataToEndOfFile()
+                output = String(data: data, encoding: .utf8) ?? ""
+            }
 
             return process.terminationStatus == 0 ? (true, "Installed") : (false, output)
         } catch {

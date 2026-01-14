@@ -44,8 +44,15 @@ actor PortScanner: PortScannerProtocol {
             try process.run()
             process.waitUntilExit()
 
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            guard let output = String(data: data, encoding: .utf8) else {
+            // Use autoreleasepool to immediately release Obj-C bridged Data objects
+            // Without this, FileHandle.readDataToEndOfFile() causes memory accumulation
+            var output: String = ""
+            autoreleasepool {
+                let data = pipe.fileHandleForReading.readDataToEndOfFile()
+                output = String(data: data, encoding: .utf8) ?? ""
+            }
+
+            guard !output.isEmpty else {
                 return []
             }
 
@@ -83,10 +90,16 @@ actor PortScanner: PortScannerProtocol {
             // ps will block waiting to write more data. If we call waitUntilExit first,
             // we'll wait forever for ps to finish, but ps is waiting for us to read the pipe.
             // Reading first prevents this deadlock.
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+
+            // Use autoreleasepool to immediately release Obj-C bridged Data objects
+            var output: String = ""
+            autoreleasepool {
+                let data = pipe.fileHandleForReading.readDataToEndOfFile()
+                output = String(data: data, encoding: .utf8) ?? ""
+            }
             process.waitUntilExit()
 
-            guard let output = String(data: data, encoding: .utf8) else {
+            guard !output.isEmpty else {
                 return [:]
             }
 

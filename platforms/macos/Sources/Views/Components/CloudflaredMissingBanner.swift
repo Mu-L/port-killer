@@ -140,14 +140,21 @@ struct CloudflaredMissingBanner: View {
                 try process.run()
                 process.waitUntilExit()
 
+                // Use autoreleasepool to prevent memory accumulation
+                var errorOutput: String = ""
+                if process.terminationStatus != 0 {
+                    autoreleasepool {
+                        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+                        errorOutput = String(data: data, encoding: .utf8) ?? "Unknown error"
+                    }
+                }
+
                 await MainActor.run {
                     isInstalling = false
                     if process.terminationStatus == 0 {
                         appState.tunnelManager.recheckInstallation()
                     } else {
-                        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-                        let output = String(data: data, encoding: .utf8) ?? "Unknown error"
-                        installError = "Installation failed: \(output.prefix(100))"
+                        installError = "Installation failed: \(errorOutput.prefix(100))"
                     }
                 }
             } catch {

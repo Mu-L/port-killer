@@ -74,17 +74,22 @@ extension PortForwardProcessManager {
                 let outputAccumulator = DataAccumulator()
                 let errorAccumulator = DataAccumulator()
 
+                // Use autoreleasepool in handlers - background queues don't auto-drain
                 outputPipe.fileHandleForReading.readabilityHandler = { handle in
-                    let data = handle.availableData
-                    if !data.isEmpty {
-                        outputAccumulator.append(data)
+                    autoreleasepool {
+                        let data = handle.availableData
+                        if !data.isEmpty {
+                            outputAccumulator.append(data)
+                        }
                     }
                 }
 
                 errorPipe.fileHandleForReading.readabilityHandler = { handle in
-                    let data = handle.availableData
-                    if !data.isEmpty {
-                        errorAccumulator.append(data)
+                    autoreleasepool {
+                        let data = handle.availableData
+                        if !data.isEmpty {
+                            errorAccumulator.append(data)
+                        }
                     }
                 }
 
@@ -95,10 +100,13 @@ extension PortForwardProcessManager {
                     outputPipe.fileHandleForReading.readabilityHandler = nil
                     errorPipe.fileHandleForReading.readabilityHandler = nil
 
-                    let remainingOutput = outputPipe.fileHandleForReading.readDataToEndOfFile()
-                    let remainingError = errorPipe.fileHandleForReading.readDataToEndOfFile()
-                    outputAccumulator.append(remainingOutput)
-                    errorAccumulator.append(remainingError)
+                    // Use autoreleasepool for final reads
+                    autoreleasepool {
+                        let remainingOutput = outputPipe.fileHandleForReading.readDataToEndOfFile()
+                        let remainingError = errorPipe.fileHandleForReading.readDataToEndOfFile()
+                        outputAccumulator.append(remainingOutput)
+                        errorAccumulator.append(remainingError)
+                    }
 
                     let output = String(data: outputAccumulator.value, encoding: .utf8) ?? ""
                     let errorOutput = String(data: errorAccumulator.value, encoding: .utf8) ?? ""

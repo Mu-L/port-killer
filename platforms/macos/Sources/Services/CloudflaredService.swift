@@ -102,16 +102,24 @@ actor CloudflaredService {
             let handle = pipe.fileHandleForReading
 
             while !Task.isCancelled {
-                let data = handle.availableData
-                if data.isEmpty { break }
-
-                if let output = String(data: data, encoding: .utf8)?
-                    .trimmingCharacters(in: .whitespacesAndNewlines),
-                   !output.isEmpty {
-                    let lines = output.components(separatedBy: .newlines)
-                    for line in lines where !line.isEmpty {
-                        await self?.parseLine(line, for: id)
+                // Use autoreleasepool to prevent memory accumulation from FileHandle reads
+                var output: String = ""
+                autoreleasepool {
+                    let data = handle.availableData
+                    if data.isEmpty {
+                        output = ""
+                    } else {
+                        output = String(data: data, encoding: .utf8)?
+                            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
                     }
+                }
+
+                if output.isEmpty { break }
+
+                // Use split for zero-copy iteration
+                let lines = output.split(separator: "\n", omittingEmptySubsequences: true)
+                for line in lines {
+                    await self?.parseLine(String(line), for: id)
                 }
             }
         }
