@@ -27,6 +27,13 @@ let package = Package(
             path: "Sources",
             resources: [
                 .process("Resources")
+            ],
+            swiftSettings: [
+                // Swift 6.2 performance optimizations
+                .enableExperimentalFeature("NonisolatedNonsendingByDefault"),
+                .enableExperimentalFeature("InlineArrayTypeSugar"),
+                // Default MainActor isolation - reduces boilerplate, prevents actor hops
+                .enableUpcomingFeature("DefaultIsolationMainActor")
             ]
         ),
         .testTarget(

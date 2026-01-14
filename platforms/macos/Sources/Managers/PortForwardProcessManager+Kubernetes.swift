@@ -1,5 +1,25 @@
 import Foundation
 
+// MARK: - Thread-safe Data Accumulator
+
+/// Thread-safe container for accumulating Data from concurrent sources
+private final class DataAccumulator: @unchecked Sendable {
+    private var data = Data()
+    private let lock = NSLock()
+
+    func append(_ newData: Data) {
+        lock.lock()
+        defer { lock.unlock() }
+        data.append(newData)
+    }
+
+    var value: Data {
+        lock.lock()
+        defer { lock.unlock() }
+        return data
+    }
+}
+
 extension PortForwardProcessManager {
     /// Fetches all Kubernetes namespaces.
     func fetchNamespaces() async throws -> [KubernetesNamespace] {
@@ -50,22 +70,21 @@ extension PortForwardProcessManager {
                 process.standardOutput = outputPipe
                 process.standardError = errorPipe
 
-                var outputData = Data()
-                var errorData = Data()
-                let outputQueue = DispatchQueue(label: "kubectl.output")
-                let errorQueue = DispatchQueue(label: "kubectl.error")
+                // Thread-safe accumulators for concurrent data collection
+                let outputAccumulator = DataAccumulator()
+                let errorAccumulator = DataAccumulator()
 
                 outputPipe.fileHandleForReading.readabilityHandler = { handle in
                     let data = handle.availableData
                     if !data.isEmpty {
-                        outputQueue.sync { outputData.append(data) }
+                        outputAccumulator.append(data)
                     }
                 }
 
                 errorPipe.fileHandleForReading.readabilityHandler = { handle in
                     let data = handle.availableData
                     if !data.isEmpty {
-                        errorQueue.sync { errorData.append(data) }
+                        errorAccumulator.append(data)
                     }
                 }
 
@@ -78,11 +97,11 @@ extension PortForwardProcessManager {
 
                     let remainingOutput = outputPipe.fileHandleForReading.readDataToEndOfFile()
                     let remainingError = errorPipe.fileHandleForReading.readDataToEndOfFile()
-                    outputQueue.sync { outputData.append(remainingOutput) }
-                    errorQueue.sync { errorData.append(remainingError) }
+                    outputAccumulator.append(remainingOutput)
+                    errorAccumulator.append(remainingError)
 
-                    let output = String(data: outputData, encoding: .utf8) ?? ""
-                    let errorOutput = String(data: errorData, encoding: .utf8) ?? ""
+                    let output = String(data: outputAccumulator.value, encoding: .utf8) ?? ""
+                    let errorOutput = String(data: errorAccumulator.value, encoding: .utf8) ?? ""
 
                     if process.terminationStatus != 0 {
                         if errorOutput.contains("Unable to connect") ||
