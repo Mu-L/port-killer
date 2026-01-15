@@ -1,7 +1,7 @@
 # PortKiller
 
 <p align="center">
-  <img src="Resources/AppIcon.svg" alt="PortKiller Icon" width="128" height="128">
+  <img src="https://raw.githubusercontent.com/productdevbook/port-killer/refs/heads/main/platforms/macos/Resources/AppIcon.svg" alt="PortKiller Icon" width="128" height="128">
 </p>
 
 <p align="center">
