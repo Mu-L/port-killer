@@ -10,6 +10,7 @@ extension AppState {
 
     /// Starts a background task that periodically refreshes the port list.
     func startAutoRefresh() {
+        stopAutoRefresh()
         refreshTask = Task { @MainActor in
             await self.refresh()
             while !Task.isCancelled {

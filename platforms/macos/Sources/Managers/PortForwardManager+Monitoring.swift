@@ -3,6 +3,11 @@ import Foundation
 extension PortForwardManager {
     /// Starts the connection monitoring task.
     func startMonitoring() {
+        if isMonitoring, let monitorTask, !monitorTask.isCancelled {
+            return
+        }
+
+        monitorTask?.cancel()
         isMonitoring = true
         monitorTask = Task {
             while !Task.isCancelled && isMonitoring {

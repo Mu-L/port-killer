@@ -27,6 +27,11 @@ extension PortForwardProcessManager {
         process.standardOutput = pipe
         process.standardError = pipe
 
+        outputTasks[id]?[.portForward]?.cancel()
+        if let existing = processes[id]?[.portForward], existing.isRunning {
+            existing.terminate()
+        }
+
         try process.run()
 
         if processes[id] == nil {
@@ -59,6 +64,11 @@ extension PortForwardProcessManager {
         let pipe = Pipe()
         process.standardOutput = pipe
         process.standardError = pipe
+
+        outputTasks[id]?[.proxy]?.cancel()
+        if let existing = processes[id]?[.proxy], existing.isRunning {
+            existing.terminate()
+        }
 
         try process.run()
 
@@ -115,6 +125,11 @@ extension PortForwardProcessManager {
         let pipe = Pipe()
         process.standardOutput = pipe
         process.standardError = pipe
+
+        outputTasks[id]?[.proxy]?.cancel()
+        if let existing = processes[id]?[.proxy], existing.isRunning {
+            existing.terminate()
+        }
 
         try process.run()
 

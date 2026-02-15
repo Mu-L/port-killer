@@ -134,6 +134,9 @@ final class PortForwardManager {
     func startConnection(_ id: UUID) {
         guard !isKillingProcesses else { return }
         guard let state = connection(for: id) else { return }
+        guard state.portForwardTask == nil, state.proxyTask == nil else { return }
+        guard state.portForwardStatus != .connecting, state.proxyStatus != .connecting else { return }
+        guard !state.isFullyConnected else { return }
         let config = state.config
 
         // Reset intentional stop flag when starting

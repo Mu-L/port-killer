@@ -33,6 +33,8 @@ actor PortForwardProcessManager {
     // MARK: - Output Reading
 
     func startReadingOutput(pipe: Pipe, id: UUID, type: PortForwardProcessType) {
+        outputTasks[id]?[type]?.cancel()
+
         let task = Task { [weak self] in
             let handle = pipe.fileHandleForReading
 
