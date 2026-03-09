@@ -17,6 +17,9 @@ extension Defaults.Keys {
     // Process type overrides (processName → ProcessType.rawValue)
     static let processTypeOverrides = Key<[String: String]>("processTypeOverrides", default: [:])
 
+    // Port labels (port number string → custom name)
+    static let portLabels = Key<[String: String]>("portLabels", default: [:])
+
     // Kubernetes-related keys
     static let customNamespaces = Key<[String]>("customNamespaces", default: [])
 
